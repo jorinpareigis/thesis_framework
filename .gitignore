@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+thesis_env/
+
+# Data
+data/
+*.csv
+*.dat
+
+# Logs and Framework Outputs
+wandb/
+outputs/
+multirun/
+*.log
+tea_debug.log
+
+# Environment Variables / Secrets
+.env
+.netrc

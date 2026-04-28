@@ -1,0 +1,14 @@
+defaults:
+  - _self_
+  - dataset: energy
+  - corruption: mcar
+  - model: sarimax
+
+# Global settings
+experiment_name: "initial_skeleton_run"
+seed: 42
+num_runs: 10
+
+corruption_start: 0
+corruption_end: 40
+corruption_step: 1

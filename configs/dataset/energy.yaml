@@ -1,0 +1,5 @@
+name: "pjm_energy"
+file_path: "data/PJME_hourly.csv"
+target_column: "PJME_MW"
+subset_size: 1000
+test_size: 24

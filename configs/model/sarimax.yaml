@@ -1,0 +1,3 @@
+name: "sarimax"
+order: [1, 1, 1]
+seasonal_order: [1, 0, 1, 5]
