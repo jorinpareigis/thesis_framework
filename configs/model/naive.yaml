@@ -1,3 +1,7 @@
 name: "naive"
-strategy: "seasonal_naive" # Options: forward_fill, mean, seasonal_naive, seasonal_average
-season_length: 5          # Used only for seasonal strategies. 24 for hourly, 7 for daily, etc.
+strategy: "seasonal_naive" 
+#   forward_fill (just takes the last value)
+#   mean (mean of all values)
+#   seasonal_naive (value of same day/hour in previous season)
+#   seasonal_average (precition is the average of the whole season before)
+season_length: ${dataset.seasonality}

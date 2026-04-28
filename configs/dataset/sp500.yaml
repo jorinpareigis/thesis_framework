@@ -1,5 +1,6 @@
 name: "sp500"
 file_path: "data/SP500_daily.csv"
-target_column: "Close"   # We forecast the daily closing price
-subset_size: 1000        # Roughly 20 years of trading days
-test_size: 5             # 5 days = 1 standard trading week
+target_column: "Close" # we only want the closing price (csv files only contains it anyway cause I remove the other columns)
+subset_size: 1000
+test_size: 5 
+seasonality: 5 # 5 active days in a trading week

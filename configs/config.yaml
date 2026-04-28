@@ -2,10 +2,9 @@ defaults:
   - _self_
   - dataset: energy
   - corruption: mcar
-  - model: sarimax
+  - model: xgboost
 
-# Global settings
-experiment_name: "initial_skeleton_run"
+experiment_name: "run"
 seed: 42
 num_runs: 10
 

@@ -3,17 +3,28 @@ import pandas as pd
 from .base_model import BaseForecastingModel
 
 class NaiveModel(BaseForecastingModel):
+    """
+    Implements basic baseline forecasting methods. 
+    Used to establish a minimum performance threshold for complex models.
+    """
     def __init__(self, cfg):
         model_cfg = cfg.model
         self.strategy = model_cfg.strategy
+        # Defaults to 1 to prevent division by zero or indexing errors if omitted in YAML
         self.season_length = model_cfg.get("season_length", 1)
         self.history = None
 
+        # Fail-fast validation: catch configuration errors before initiating the data pipeline
+        valid_strategies = ["forward_fill", "mean", "seasonal_average", "seasonal_naive"]
+        if self.strategy not in valid_strategies:
+            raise ValueError(f"Strategy '{self.strategy}' is not recognized.")
+
     def train(self, train_data: pd.Series):
-        """Stores the historical data needed for the naive calculations."""
+        """Stores historical data and verifies structural requirements."""
+        # Convert to standard float array for faster vectorized numpy operations later
         self.history = train_data.astype(float).values
         
-        # Validation constraint
+        # Ensure enough historical data exists to calculate a full seasonal cycle
         if self.strategy in ["seasonal_naive", "seasonal_average"]:
             if len(self.history) < self.season_length:
                 raise ValueError(
@@ -28,28 +39,26 @@ class NaiveModel(BaseForecastingModel):
         predictions = []
         
         if self.strategy == "forward_fill":
-            # Flatline of the last known value
+            # Propagates the most recent single observation forward
             val = self.history[-1]
             predictions = [val] * steps
             
         elif self.strategy == "mean":
-            # Flatline of the entire historical average
+            # Calculates the global mean of all available historical data
             val = np.mean(self.history)
             predictions = [val] * steps
             
         elif self.strategy == "seasonal_average":
-            # Flatline of the last full season's average
+            # Averages only the final complete seasonal cycle (e.g., the last 24 hours)
             val = np.mean(self.history[-self.season_length:])
             predictions = [val] * steps
             
         elif self.strategy == "seasonal_naive":
-            # Replays the exact sequence of the last known season
+            # Repeats the exact pattern of the last known season
             for i in range(steps):
-                # Calculate the index to strictly loop through the last season
+                # Modulo operator loops the index backward over the season_length boundary.
+                # Example for season_length=24: idx cycles from -24 up to -1 repeatedly.
                 idx = -(self.season_length) + (i % self.season_length)
                 predictions.append(self.history[idx])
-                
-        else:
-            raise NotImplementedError(f"Strategy '{self.strategy}' is not recognized.")
             
         return predictions

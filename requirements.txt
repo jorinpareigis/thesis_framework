@@ -1,0 +1,9 @@
+hydra-core
+omegaconf
+wandb
+pandas
+numpy
+scikit-learn
+statsmodels
+xgboost
+yfinance
