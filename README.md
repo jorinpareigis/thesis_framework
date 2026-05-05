@@ -42,7 +42,7 @@ thesis_framework/
 
 **1. Clone the repository**
 ```bash
-git clone [[https://github.com/jorinpareigis/thesis_framework.git](https://github.com/jorinpareigis/thesis_framework.git)]
+git clone https://github.com/jorinpareigis/thesis_framework.git
 cd thesis_framework
 ```
 
@@ -69,9 +69,9 @@ wandb login
 Ensure your local data files are present in the `data/` directory. 
 * **Finance:** Execute the included fetch script:
   ```cmd
-  python download_sp500.py
-  
-```
+  python download_sp500.py 
+  ```
+
 * **Energy:** Download the `PJME_hourly.csv` dataset and manually place it in the `data/` folder.
 
 ## Running an Experiment
