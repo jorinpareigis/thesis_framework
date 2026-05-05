@@ -3,6 +3,7 @@ from omegaconf import DictConfig, OmegaConf
 import wandb
 import logging
 import numpy as np
+from tqdm import tqdm
 
 from src.data_loader import load_data
 from src.corruptions import apply_corruption
@@ -10,6 +11,9 @@ from src.evaluator import evaluate_predictions
 from src.models.model_xgboost import XGBoostModel
 from src.models.model_naive import NaiveModel
 from src.models.model_sarimax import SARIMAXModel
+from src.models.model_prophet import ProphetModel
+from src.models.model_chronos import ChronosModel
+from src.models.model_lstm import LSTMModel
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,8 @@ def main(cfg: DictConfig):
         
         # 5. Inner Loop: Corruption Scaling
         # Progressively degrades the dataset to test the model's breaking point.
-        for missing_pct in corruption_steps:
+        # Wrapped with tqdm to display a progress bar for the steps inside the current run.
+        for missing_pct in tqdm(corruption_steps, desc=f"Run {run + 1} Progress", leave=True):
             # Rounding prevents Python's floating-point precision errors (e.g., 0.500000001)
             # from creating mismatched keys in the aggregated_metrics dictionary.
             missing_pct = round(float(missing_pct), 4)
@@ -86,6 +91,12 @@ def main(cfg: DictConfig):
                 model = XGBoostModel(cfg)
             elif cfg.model.name == "naive":
                 model = NaiveModel(cfg)
+            elif cfg.model.name == "prophet":
+                model = ProphetModel(cfg)
+            elif cfg.model.name == "chronos":
+                model = ChronosModel(cfg)
+            elif cfg.model.name == "lstm":
+                model = LSTMModel(cfg)
             else:
                 raise NotImplementedError(f"Model {cfg.model.name} is not implemented.")
                 

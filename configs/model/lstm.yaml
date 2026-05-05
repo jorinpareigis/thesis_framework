@@ -1,0 +1,7 @@
+name: "lstm"
+lookback_window: 48
+hidden_size: 64
+num_layers: 2
+learning_rate: 0.001
+epochs: 50
+batch_size: 32
