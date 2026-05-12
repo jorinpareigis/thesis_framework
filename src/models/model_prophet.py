@@ -8,6 +8,10 @@ py_logging.getLogger('prophet').setLevel(py_logging.ERROR)
 from prophet import Prophet
 from .base_model import BaseForecastingModel
 
+# Suppress Prophet's chatty INFO logs to keep the terminal clean
+logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
+logging.getLogger('prophet').setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 class ProphetModel(BaseForecastingModel):

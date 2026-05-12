@@ -34,6 +34,14 @@ def load_data(cfg):
     # train on future data (data leakage), invalidating the evaluation.
     df = df.sort_index()
 
+    # CRITICAL ADDITION FOR PROPHET / SARIMAX:
+    # Explicitly set the frequency to hourly. This fills in any completely missing 
+    # timestamps with NaNs, which the ffill() step below will then patch.
+    # Fetch the frequency from the YAML, defaulting to 'h' (hourly) for older datasets 
+    # like energy, sp500, and air_quality if the key is not explicitly defined.
+    data_freq = dataset_cfg.get("frequency", "h")
+    df = df.asfreq(data_freq)
+
     # Fail-fast validation to catch configuration mapping errors immediately.
     if target_col not in df.columns:
         raise ValueError(f"Target column '{target_col}' not found in {file_path}.")

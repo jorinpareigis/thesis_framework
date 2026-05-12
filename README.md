@@ -10,13 +10,11 @@ Designed and optimized for execution on Windows.
 * **Deterministic Corruption:** Ensures strict data subsetting across intensity steps (e.g., data dropped at 10% corruption is explicitly retained within the 11% corruption step) by managing RNG seeds.
 * **Datasets:** 
   * **Implemented:** Hourly Energy Consumption, Finance (S&P 500).
-  * **Planned:** 2-3 additional datasets.
 * **Supported Models:** 
   * **Implemented:** SARIMAX, XGBoost, Prophet, Chronos (Amazon Foundation Model), LSTM (PyTorch), and 4 Naive Baselines (Forward Fill, Global Mean, Seasonal Last, Seasonal Average).
-  * **Planned:** Gaussian Process Regression (GPR).
 * **Supported Corruptions:** 
   * **Implemented:** MCAR (Missing Completely At Random), Outliers.
-  * **Planned:** Gaussian Noise, Sensor Outage, Sensor Drift, Adversarial Data Injection.
+  * **Planned:** Gaussian Noise, Sensor Outage, Sensor Drift
 
 ## Project Structure
 ```text
@@ -94,7 +92,6 @@ Specify your target parameters using the `key=value` syntax. Always set a descri
 * `model=lstm`
 * `model=chronos`
 * `model=naive model.strategy=forward_fill` (Options: `forward_fill`, `mean`, `seasonal_naive`, `seasonal_average`)
-* *(Planned)*: `model=gpr`
 
 **2. Dataset Selection**
 * `dataset=energy`

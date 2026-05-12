@@ -1,6 +1,7 @@
 name: "pjm_energy"
 file_path: "data/PJME_hourly.csv"
 target_column: "PJME_MW"
-subset_size: 1000
-test_size: 24
-seasonality: 24
+frequency: "h"
+subset_size: 2184     # Exactly 13 weeks (Matches air_quality for fair comparison)
+test_size: 168        # Predict exactly 1 week
+seasonality: 24       # Daily human wake/sleep cycles

@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from tqdm import tqdm
 
+from src.utils.validators import validate_configuration
 from src.data_loader import load_data
 from src.corruptions import apply_corruption
 from src.evaluator import evaluate_predictions
@@ -25,6 +26,10 @@ def main(cfg: DictConfig):
     Main orchestrator for the machine learning framework.
     Manages the data pipeline, Monte Carlo execution loops, and external logging.
     """
+    # 0. Fail-Fast Validation
+    # Checks if the dataset + corruption pairing makes scientific sense
+    validate_configuration(cfg)
+
     # 1. Initialize Weights & Biases
     # OmegaConf.to_container converts the Hydra config into a standard Python dictionary.
     # This is required because WandB cannot natively serialize Hydra's internal object types.
@@ -141,5 +146,4 @@ if __name__ == "__main__":
     main()
 
 # Example terminal commands for execution:
-# python main.py experiment_name=run_0.0.1 dataset=energy corruption=mcar model=naive model.strategy=forward_fill
-# python main.py experiment_name=run_energy_outliers_xgboost dataset=energy corruption=outliers model=xgboost
+# python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_0.0.1"
