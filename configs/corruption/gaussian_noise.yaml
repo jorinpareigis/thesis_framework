@@ -1,0 +1,3 @@
+type: "gaussian_noise"
+method: "none"
+max_intensity: 0.5  # At step 40, the noise std_dev will be 50% of the dataset's std_dev

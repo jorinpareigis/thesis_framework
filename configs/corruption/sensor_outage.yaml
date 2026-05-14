@@ -1,0 +1,2 @@
+type: "sensor_outage"
+method: "linear_interpolation"

@@ -1,7 +1,7 @@
 name: "iot_temp"
 file_path: "data/iot_temp.csv"
 target_column: "temperature"
-frequency: "5min"     # Required for pandas frequency parsing
-subset_size: 4032     # Loads exactly 14 days of 5-minute data (14 * 288)
-test_size: 288        # Predict 24 hours into the future (24 * 12)
-seasonality: 288      # Daily thermal cycle for the machine
+frequency: "5min"    # Required for pandas frequency parsing
+subset_size: 2016    # Loads exactly 7 days of 5-minute data
+test_size: 60        # 5 hours
+seasonality: 288     # Daily thermal cycle for the machine

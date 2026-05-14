@@ -11,7 +11,7 @@ run_suffix: ""
 experiment_name: "${dataset.name}_${corruption.type}_${model.name}${run_suffix}"
 
 seed: 42
-num_runs: 10
+num_runs: 25
 
 corruption_start: 0
 corruption_end: 40

@@ -45,12 +45,12 @@ def main(cfg: DictConfig):
     # 2. Load Data
     # The train/test split is performed here, prior to any corruption, 
     # guaranteeing that the test set remains an uncorrupted ground truth benchmark.
-    train_clean, test_truth = load_data(cfg)
-    test_size = cfg.dataset.test_size
+    # removed data load from here inside the monte carlo loop
 
     # 3. Execution Setup
     # Define the number of Monte Carlo iterations for statistical robustness.
     num_runs = cfg.get("num_runs", 10)
+    batch_mode = cfg.get("batch_mode", False)
     
     # Generate the sequence of corruption intensities to test (e.g., 0.0%, 0.5%, 1.0%...).
     corruption_steps = np.arange(
@@ -65,6 +65,9 @@ def main(cfg: DictConfig):
         for pct in corruption_steps
     }
 
+    # Dictionary to track which milestones have been announced
+    milestones = {25: False, 50: False, 75: False}
+
     # 4. Outer Loop: Multiple Seeds (Monte Carlo Simulation)
     # Running the experiment multiple times with different seeds captures both the 
     # expected performance (mean) and the variance (standard deviation) of the models.
@@ -74,13 +77,30 @@ def main(cfg: DictConfig):
         # but reproducible path for every iteration.
         current_seed = cfg.seed + run
         cfg.seed = current_seed  # Update cfg so corruptions.py reads the new seed
+
+        # --- Milestone Reporting ---
+        progress_pct = (run / num_runs) * 100
+        if progress_pct >= 25 and not milestones[25]:
+            logger.info("BATCH_PROGRESS_25")
+            milestones[25] = True
+        elif progress_pct >= 50 and not milestones[50]:
+            logger.info("BATCH_PROGRESS_50")
+            milestones[50] = True
+        elif progress_pct >= 75 and not milestones[75]:
+            logger.info("BATCH_PROGRESS_75")
+            milestones[75] = True
         
-        logger.info(f"=== Starting Run {run + 1}/{num_runs} with Seed {current_seed} ===")
+        if not batch_mode:
+            logger.info(f"=== Starting Run {run + 1}/{num_runs} with Seed {current_seed} ===")
+
+        # MOVED HERE: Load a new randomized data slice for this specific run
+        train_clean, test_truth = load_data(cfg)
+        test_size = cfg.dataset.test_size
         
         # 5. Inner Loop: Corruption Scaling
         # Progressively degrades the dataset to test the model's breaking point.
         # Wrapped with tqdm to display a progress bar for the steps inside the current run.
-        for missing_pct in tqdm(corruption_steps, desc=f"Run {run + 1} Progress", leave=True):
+        for missing_pct in tqdm(corruption_steps, desc=f"Run {run + 1} Progress", leave=True, disable=batch_mode):
             # Rounding prevents Python's floating-point precision errors (e.g., 0.500000001)
             # from creating mismatched keys in the aggregated_metrics dictionary.
             missing_pct = round(float(missing_pct), 4)
@@ -147,3 +167,4 @@ if __name__ == "__main__":
 
 # Example terminal commands for execution:
 # python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_0.0.1"
+# python main.py dataset=iot_temp corruption=gaussian_noise model=xgboost run_suffix="_0.0.1"

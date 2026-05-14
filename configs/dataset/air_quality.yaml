@@ -2,6 +2,6 @@ name: "air_quality"
 file_path: "data/air_quality.csv"
 target_column: "pm2.5"
 frequency: "h"
-subset_size: 2184     # Exactly 13 weeks (24 hours * 7 days * 13 weeks)
-test_size: 168        # Predict exactly 1 week (24 hours * 7 days)
-seasonality: 24       # Daily cycles (smog clearing at night)
+subset_size: 1680    # Exactly 10 weeks
+test_size: 48        # Predict exactly 2 days
+seasonality: 24      # Daily cycles (smog clearing at night)

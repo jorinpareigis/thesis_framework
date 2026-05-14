@@ -1,42 +1,54 @@
 # Thesis Framework: Time-Series Forecasting Robustness
 
-A modular machine learning framework designed to evaluate the degradation curves of forecasting models under progressively increasing data corruption. It uses Hydra for dynamic configuration and Weights & Biases (W&B) for logging Monte Carlo simulation results. 
+A modular machine learning framework designed to evaluate the degradation curves of forecasting models under progressively increasing data corruption. It uses Hydra for dynamic configuration and Weights & Biases (W&B) for logging Monte Carlo simulation results. Designed and optimized for execution on Windows.
 
-Designed and optimized for execution on Windows.
+## Feature Overview
 
-## Features
-* **Modular Architecture:** Isolate data loading, corruption logic, and model execution.
 * **Monte Carlo Evaluation:** Averages multiple runs per configuration to capture statistically significant performance metrics (Mean and Standard Deviation of RMSE/MAE).
-* **Deterministic Corruption:** Ensures strict data subsetting across intensity steps (e.g., data dropped at 10% corruption is explicitly retained within the 11% corruption step) by managing RNG seeds.
-* **Datasets:** 
-  * **Implemented:** Hourly Energy Consumption, Finance (S&P 500).
-* **Supported Models:** 
-  * **Implemented:** SARIMAX, XGBoost, Prophet, Chronos (Amazon Foundation Model), LSTM (PyTorch), and 4 Naive Baselines (Forward Fill, Global Mean, Seasonal Last, Seasonal Average).
-* **Supported Corruptions:** 
-  * **Implemented:** MCAR (Missing Completely At Random), Outliers.
-  * **Planned:** Gaussian Noise, Sensor Outage, Sensor Drift
+* **Deterministic Corruption:** Ensures strict data subsetting across intensity steps by managing RNG seeds.
+* **Implemented Datasets:**
+  * **Finance:** S&P 500 Daily (`sp500`)
+  * **Energy:** PJME Hourly Energy Consumption (`energy`)
+  * **IoT:** Machine Temperature 5-min (`iot_temp`)
+  * **Environment:** Beijing PM2.5 Hourly Air Quality (`air_quality`)
+* **Implemented Models:**
+  * **Statistical:** SARIMAX, Prophet
+  * **Machine Learning:** XGBoost
+  * **Deep Learning/Foundation:** LSTM (PyTorch), Chronos (Amazon)
+  * **Naive Baselines:** Forward Fill, Global Mean, Seasonal Last, Seasonal Average
+* **Implemented Corruptions:**
+  * MCAR (Missing Completely At Random)
+  * Outliers
+  * Gaussian Noise
+  * Sensor Outage
+  * Sensor Drift
 
 ## Project Structure
+
 ```text
 thesis_framework/
 ├── configs/                 # Hydra configuration YAMLs
-│   ├── corruption/          # MCAR, Outliers settings
-│   ├── dataset/             # Energy, S&P 500 settings
+│   ├── corruption/          # MCAR, Outliers, Noise, Outage, Drift settings
+│   ├── dataset/             # Energy, S&P 500, IoT, Air Quality settings
 │   ├── model/               # Model-specific hyperparameters
 │   └── config.yaml          # Global orchestrator parameters
 ├── data/                    # Local CSV datasets (git-ignored)
+├── scripts/                 # Automated data fetching and cleaning scripts
 ├── src/
 │   ├── models/              # Model wrappers (XGBoost, LSTM, Chronos, etc.)
+│   ├── utils/               # Validators and helpers
 │   ├── corruptions.py       # Anomaly injection logic
 │   ├── data_loader.py       # Data parsing and train/test splitting
 │   └── evaluator.py         # RMSE and MAE calculations
-├── main.py                  # Execution orchestrator
-├── download_sp500.py        # Script to fetch S&P 500 data via yfinance
-├── requirements.txt         # Project dependencies (includes PyTorch CUDA links)
-└── .gitignore
+├── main.py                  # Single-experiment execution orchestrator
+├── run_experiments.py       # Multi-experiment concurrent batch runner
+├── pyproject.toml           # uv project dependencies
+└── README.md
 ```
 
 ## Installation (Windows Setup)
+
+This project uses `uv`, an extremely fast Python package and project manager.
 
 **1. Clone the repository**
 ```bash
@@ -44,81 +56,95 @@ git clone https://github.com/jorinpareigis/thesis_framework.git
 cd thesis_framework
 ```
 
-**2. Set up the Python environment (VS Code Terminal)**
-Create and activate a virtual environment:
-```cmd
-python -m venv thesis_env
-.\thesis_env\Scripts\activate
+**2. Install dependencies via uv**
+Ensure you have `uv` installed (`pip install uv`). Then, sync the project to automatically create a virtual environment and install all core dependencies.
+```bash
+uv sync
 ```
 
-**3. Install Dependencies & CUDA Support**
-Deep learning models (Chronos, LSTM) require GPU acceleration to run feasibly within a Monte Carlo loop. The `requirements.txt` is pre-configured to fetch the PyTorch CUDA 12.1 backend for NVIDIA GPUs.
-```cmd
-pip install -r requirements.txt
+**3. Activate the environment**
+```bash
+.venv\Scripts\activate
 ```
 
-**4. Configure Weights & Biases**
+**4. Install PyTorch (Hardware Specific)**
+*Note: PyTorch is explicitly excluded from the core dependencies. Deep learning models (Chronos, LSTM) require significant matrix multiplication capabilities. To ensure optimal execution speed, install the PyTorch version that matches your hardware accelerator.*
+
+For NVIDIA GPUs (CUDA 12.1):
+```bash
+uv pip install torch --index-url https://download.pytorch.org/whl/cu121
+```
+For CPU-only:
+```bash
+uv pip install torch
+```
+
+**5. Configure Weights & Biases**
 The framework requires a W&B account to log metrics. Authenticate your local environment:
-```cmd
+```bash
 wandb login
 ```
 
-**5. Prepare Datasets**
-Ensure your local data files are present in the `data/` directory. 
-* **Finance:** Execute the included fetch script:
-  ```cmd
-  python download_sp500.py 
-  ```
+**6. Prepare Datasets**
+Execute the included fetch scripts to download and format the datasets:
+```bash
+python scripts/download_air_quality.py
+python scripts/download_iot_temp.py
+python scripts/download_sp500.py
+```
+*Note: Download the `PJME_hourly.csv` dataset manually and place it in the `data/` folder.*
 
-* **Energy:** Download the `PJME_hourly.csv` dataset and manually place it in the `data/` folder.
-
-## Running an Experiment
+## Running a Single Experiment (`main.py`)
 
 The framework is driven by Hydra. You execute `main.py` and override the default YAML configurations directly from the command line.
 
 ### Basic Execution
-Running the script without arguments executes the defaults defined in `configs/config.yaml`.
-```cmd
+```bash
 python main.py
 ```
 
 ### Command-Line Overrides
-Specify your target parameters using the `key=value` syntax. Always set a descriptive `experiment_name` to track the run cleanly in W&B.
+Specify target parameters using the `key=value` syntax.
 
-**1. Model Selection**
-* `model=xgboost`
-* `model=sarimax`
-* `model=prophet`
-* `model=lstm`
-* `model=chronos`
-* `model=naive model.strategy=forward_fill` (Options: `forward_fill`, `mean`, `seasonal_naive`, `seasonal_average`)
+**Model Selection (`model=`)**
+* `xgboost`, `sarimax`, `prophet`, `lstm`, `chronos`
+* `naive model.strategy=forward_fill` (Options: `forward_fill`, `mean`, `seasonal_naive`, `seasonal_average`)
 
-**2. Dataset Selection**
-* `dataset=energy`
-* `dataset=sp500`
+**Dataset Selection (`dataset=`)**
+* `energy`, `sp500`, `iot_temp`, `air_quality`
 
-**3. Corruption Selection**
-* `corruption=mcar`
-* `corruption=outliers`
-* *(Planned)*: `corruption=gaussian_noise`, `corruption=sensor_outage`, `corruption=sensor_drift`, `corruption=adversarial`
+**Corruption Selection (`corruption=`)**
+* `mcar`, `outliers`, `gaussian_noise`, `sensor_outage`, `sensor_drift`
+
+### Dataset & Corruption Limitations
+Validation logic prevents scientifically illogical combinations. Ensure you adhere to the following mapping:
+* **`sp500`**: `mcar`, `outliers`
+* **`energy`**: `mcar`, `outliers`, `sensor_outage`, `gaussian_noise`
+* **`iot_temp`**: `mcar`, `outliers`, `sensor_outage`, `sensor_drift`, `gaussian_noise`
+* **`air_quality`**: `mcar`, `outliers`, `sensor_outage`, `sensor_drift`, `gaussian_noise`
 
 ### Execution Examples
-
-**Example 1: GPU-Accelerated Foundation Model on Energy Data**
-```cmd
+```bash
+# Run Chronos on Energy data with MCAR corruption
 python main.py experiment_name=energy_chronos_mcar dataset=energy model=chronos corruption=mcar
-```
 
-**Example 2: PyTorch LSTM on S&P 500 with Outliers**
-```cmd
-python main.py experiment_name=sp500_lstm_outliers dataset=sp500 model=lstm corruption=outliers
-```
-
-**Example 3: Overriding Global Loop Parameters**
-You can adjust the corruption boundaries or Monte Carlo run count on the fly for rapid testing:
-```cmd
+# Override Monte Carlo loop parameters for a quick test
 python main.py experiment_name=quick_test corruption_start=0 corruption_end=10 corruption_step=2 num_runs=3
 ```
 
+## Running Multiple Experiments (`run_experiments.py`)
+
+To execute multiple configurations sequentially or concurrently without re-entering commands, use `run_experiments.py`.
+
+1. **Tailor to your setup**: Open `run_experiments.py` and adjust `MAX_CPU_WORKERS` and `MAX_GPU_WORKERS` to match your system specifications to prevent Out of Memory (OOM) errors.
+2. **Define the grid**: Edit the `DATASETS`, `CORRUPTIONS`, and `MODELS` arrays in the script to define the combinations you wish to run.
+3. **Execute**:
+   ```bash
+   python run_experiments.py
+   ```
+
+The script automatically routes CPU-bound models to a concurrent pool and GPU-bound models to a sequential queue, monitoring progress without cluttering the terminal.
+
 ## View Results
-Upon execution, `main.py` utilizes `tqdm` to display nested progress bars in the terminal. Once a full simulation completes, it aggregates the metrics and pushes them to the cloud. Navigate to your [Weights & Biases Project](https://wandb.ai) to view the plotted degradation curves (Mean and Standard Deviation for RMSE/MAE).
+
+The framework aggregates metrics (Mean and Standard Deviation of RMSE/MAE) only after all Monte Carlo iterations complete for a corruption step. Navigate to your [Weights & Biases Dashboard](https://wandb.ai) to view the plotted degradation curves.

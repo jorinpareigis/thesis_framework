@@ -2,6 +2,6 @@ name: "sp500"
 file_path: "data/SP500_daily.csv"
 target_column: "Close"
 frequency: "B"        # CRITICAL: Pandas 'Business Day' frequency (Mon-Fri only)
-subset_size: 1008      # Exactly 4 trading years (252 trading days per year * 4)
+subset_size: 1008     # Exactly 4 trading years (252 trading days per year * 4)
 test_size: 5          # Predict 1 full trading week
 seasonality: 5        # 5 active days in a trading week
