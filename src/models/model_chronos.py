@@ -19,6 +19,9 @@ class ChronosModel(BaseForecastingModel):
         self.temperature = model_cfg.temperature
         self.top_p = model_cfg.top_p
         
+        # Capture the seed from Hydra for deterministic inference
+        self.seed = cfg.seed 
+        
         # Explicitly assign to GPU to ensure acceptable iteration speed
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if self.device == "cpu":
@@ -48,6 +51,11 @@ class ChronosModel(BaseForecastingModel):
         """
         if self.context_data is None:
             raise RuntimeError("Context data must be provided via train() before prediction.")
+
+        # CRITICAL FIX 6: Seed PyTorch RNG right before stochastic sampling
+        torch.manual_seed(self.seed)
+        if self.device == "cuda":
+            torch.cuda.manual_seed_all(self.seed)
 
         forecast_tensor = self.pipeline.predict(
             self.context_data.unsqueeze(0),

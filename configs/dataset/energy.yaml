@@ -5,3 +5,9 @@ frequency: "h"
 subset_size: 1680    # Exactly 10 weeks
 test_size: 48        # Predict exactly 2 days
 seasonality: 24      # Daily human wake/sleep cycles
+context_window: 48   # used for LSTM and XGBoost
+
+prophet_seasonality_mode: "additive"
+
+sarimax_order: [2, 1, 2]
+sarimax_seasonal_order: [2, 0, 1, 24]

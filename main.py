@@ -168,3 +168,4 @@ if __name__ == "__main__":
 # Example terminal commands for execution:
 # python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_0.0.1"
 # python main.py dataset=iot_temp corruption=gaussian_noise model=xgboost run_suffix="_0.0.1"
+# python main.py dataset=sp500 corruption=mcar model=xgboost run_suffix="_new_parameters"

@@ -1,10 +1,3 @@
 name: "sarimax"
-order:
-  - 1
-  - 1
-  - 1
-seasonal_order:
-  - 1
-  - 0
-  - 1
-  - ${dataset.seasonality}
+order: ${dataset.sarimax_order}
+seasonal_order: ${dataset.sarimax_seasonal_order}

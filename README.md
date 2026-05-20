@@ -126,10 +126,10 @@ Validation logic prevents scientifically illogical combinations. Ensure you adhe
 ### Execution Examples
 ```bash
 # Run Chronos on Energy data with MCAR corruption
-python main.py experiment_name=energy_chronos_mcar dataset=energy model=chronos corruption=mcar
+python main.py run_suffix="_1" dataset=energy model=chronos corruption=mcar
 
 # Override Monte Carlo loop parameters for a quick test
-python main.py experiment_name=quick_test corruption_start=0 corruption_end=10 corruption_step=2 num_runs=3
+python main.py experiment_name=quick_test corruption_start=0 corruption_end=10 corruption_step=2 num_runs=3 
 ```
 
 ## Running Multiple Experiments (`run_experiments.py`)

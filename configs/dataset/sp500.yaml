@@ -5,3 +5,9 @@ frequency: "B"        # CRITICAL: Pandas 'Business Day' frequency (Mon-Fri only)
 subset_size: 1008     # Exactly 4 trading years (252 trading days per year * 4)
 test_size: 5          # Predict 1 full trading week
 seasonality: 5        # 5 active days in a trading week
+context_window: 10    # used for LSTM and XGBoost
+
+prophet_seasonality_mode: "multiplicative"
+
+sarimax_order: [0, 1, 0]
+sarimax_seasonal_order: [0, 0, 0, 5]

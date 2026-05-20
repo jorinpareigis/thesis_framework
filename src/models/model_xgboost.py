@@ -20,6 +20,8 @@ class XGBoostModel(BaseForecastingModel):
             n_estimators=model_cfg.n_estimators,
             learning_rate=model_cfg.learning_rate,
             max_depth=model_cfg.max_depth,
+            subsample=model_cfg.get("subsample", 1.0),
+            colsample_bytree=model_cfg.get("colsample_bytree", 1.0),
             # Set to standard regression loss.
             objective='reg:squarederror',
             # Seed propagation ensures tree building is deterministic across Monte Carlo runs.
@@ -42,6 +44,10 @@ class XGBoostModel(BaseForecastingModel):
         return np.array(X), np.array(y)
 
     def train(self, train_data: pd.Series):
+        # CRITICAL FIX 4: Guard against un-imputed NaNs crashing the C++ backend
+        if train_data.isna().any():
+            raise ValueError("Training data contains NaNs. Use an imputation method in your corruption config.")
+            
         # Enforce float type to avoid data type conflicts within the XGBoost C++ backend.
         train_data = train_data.astype(float)
         

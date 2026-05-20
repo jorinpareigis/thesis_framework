@@ -4,6 +4,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import pandas as pd
 import logging
+import random # Add this import
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 from .base_model import BaseForecastingModel
@@ -12,18 +13,22 @@ logger = logging.getLogger(__name__)
 
 # --- 1. The Neural Network Architecture ---
 class PyTorchLSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=64, num_layers=2, output_size=1):
+    # ... (Keep this class exactly as it is) ...
+    def __init__(self, input_size=1, hidden_size=50, num_layers=2, output_size=1, dropout=0.2):
         super(PyTorchLSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        
-        # The LSTM layer (batch_first=True ensures input shape is [batch, seq_len, features])
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-        # Fully connected layer to map the hidden state to a single numerical prediction
+        lstm_dropout = dropout if num_layers > 1 else 0.0
+        self.lstm = nn.LSTM(
+            input_size, 
+            hidden_size, 
+            num_layers, 
+            batch_first=True, 
+            dropout=lstm_dropout
+        )
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        # We only care about the final output of the sequence
         out, _ = self.lstm(x)
         out = self.fc(out[:, -1, :]) 
         return out
@@ -37,23 +42,36 @@ class LSTMModel(BaseForecastingModel):
         self.epochs = model_cfg.epochs
         self.batch_size = model_cfg.batch_size
         self.lr = model_cfg.learning_rate
+        self.seed = cfg.seed # Capture the seed from Hydra
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # Instantiate the architecture and move it to the GPU
+        # CRITICAL FIX 3: Force deterministic weight initialization
+        self._set_seed()
+        
+        # Instantiate the architecture AFTER setting the seed
         self.model = PyTorchLSTM(
             hidden_size=model_cfg.hidden_size, 
-            num_layers=model_cfg.num_layers
+            num_layers=model_cfg.num_layers,
+            dropout=model_cfg.get("dropout", 0.2)
         ).to(self.device)
         
-        # Neural nets require data to be strictly scaled between -1 and 1 or 0 and 1
         self.scaler = MinMaxScaler(feature_range=(-1, 1))
-        
-        # Store the last sequence of training data to use as the "seed" for prediction
         self.last_sequence = None
 
+    def _set_seed(self):
+        """Forces all underlying C++ and Python random number generators into a fixed state."""
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
+            # Enforce deterministic cuDNN algorithms
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
     def _create_sequences(self, data: np.ndarray):
-        """Slides a window across the 1D data to create X (context) and y (target) pairs."""
+        # ... (Keep this method exactly as it is) ...
         X, y = [], []
         for i in range(len(data) - self.window):
             X.append(data[i : i + self.window])
@@ -62,57 +80,58 @@ class LSTMModel(BaseForecastingModel):
 
     def train(self, train_data: pd.Series):
         """Normalizes data, builds sequences, and executes the PyTorch training loop."""
+        
+        # CRITICAL FIX 4: Guard against un-imputed NaNs silently ruining loss metrics
+        if train_data.isna().any():
+            raise ValueError("Training data contains NaNs. Use an imputation method in your corruption config.")
+            
         # 1. Normalize and reshape
         data_scaled = self.scaler.fit_transform(train_data.values.reshape(-1, 1))
-        
-        # Save the very last window so the predict() method has a starting point
         self.last_sequence = data_scaled[-self.window:]
         
         # 2. Build sequences
         X, y = self._create_sequences(data_scaled)
         
-        # Convert to PyTorch Tensors
         X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
         y_tensor = torch.tensor(y, dtype=torch.float32).to(self.device)
         
         # Create DataLoader for batching
         dataset = TensorDataset(X_tensor, y_tensor)
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        
+        # CRITICAL FIX 3: Force the DataLoader's shuffle mechanism to be deterministic
+        g = torch.Generator()
+        g.manual_seed(self.seed)
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, generator=g)
         
         # 3. Setup Loss and Optimizer
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         
-        # 4. Training Loop (tqdm leave=False keeps the console clean during Monte Carlo loops)
+        # 4. Training Loop
         self.model.train()
         for epoch in tqdm(range(self.epochs), desc="Training LSTM", leave=False):
             for batch_X, batch_y in loader:
                 optimizer.zero_grad()
                 outputs = self.model(batch_X)
-                loss = criterion(outputs, batch_y)
+                
+                # Prevent silent broadcasting bugs (Cursor Warning #15)
+                loss = criterion(outputs, batch_y.unsqueeze(1)) 
+                
                 loss.backward()
                 optimizer.step()
 
     def predict(self, steps: int) -> list:
-        """Autoregressively predicts future steps one by one."""
+        # ... (Keep this method exactly as it is) ...
         self.model.eval()
         predictions = []
-        
-        # Start with the sequence saved at the end of training (Shape: [1, seq_len, 1])
         current_seq = torch.tensor(self.last_sequence, dtype=torch.float32).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
             for _ in range(steps):
-                # Predict the next step
                 next_step = self.model(current_seq)
                 predictions.append(next_step.item())
-                
-                # Append the new prediction to the sequence and drop the oldest value
-                # (Rolling the window forward by 1)
-                next_step_reshaped = next_step.unsqueeze(0)  # Shape: [1, 1, 1]
+                next_step_reshaped = next_step.unsqueeze(0)
                 current_seq = torch.cat((current_seq[:, 1:, :], next_step_reshaped), dim=1)
                 
-        # Inverse transform the predictions back to their original numerical scale
         predictions_unscaled = self.scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
-        
         return predictions_unscaled.flatten().tolist()

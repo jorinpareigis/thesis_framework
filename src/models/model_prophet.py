@@ -23,6 +23,9 @@ class ProphetModel(BaseForecastingModel):
     def __init__(self, cfg):
         model_cfg = cfg.model
         
+        # CRITICAL FIX 5: Capture the true dataset frequency from Hydra
+        self.config_freq = cfg.dataset.get("frequency", "h")
+        
         # Initialize Prophet explicitly using the parameters defined in prophet.yaml
         self.model = Prophet(
             growth=model_cfg.growth,
@@ -33,7 +36,7 @@ class ProphetModel(BaseForecastingModel):
             weekly_seasonality=model_cfg.weekly_seasonality,
             yearly_seasonality=model_cfg.yearly_seasonality
         )
-        # Placeholder to store the dataset's temporal frequency (e.g., 'D' for days, 'h' for hours)
+        # Placeholder to store the dataset's temporal frequency
         self.freq = None
 
     def train(self, train_data: pd.Series):
@@ -52,9 +55,9 @@ class ProphetModel(BaseForecastingModel):
         self.freq = train_data.index.inferred_freq
         if self.freq is None:
             # Fallback mechanism: If data corruption is so severe that pandas cannot 
-            # mathematically infer the step frequency, we default to hourly.
-            logger.warning("Could not infer datetime frequency from index. Defaulting to 'h'.")
-            self.freq = 'h'
+            # mathematically infer the step frequency, we default to the YAML config.
+            logger.warning(f"Could not infer datetime frequency from index. Defaulting to config frequency: '{self.config_freq}'.")
+            self.freq = self.config_freq
             
         self.model.fit(df)
 

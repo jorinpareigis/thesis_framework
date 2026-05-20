@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 # ==========================================
 # 1. DEFINE YOUR EXPERIMENT GRID
 # ==========================================
-DATASETS = ["sp500"]  
-CORRUPTIONS = ["mcar"]         
-MODELS = ["naive", "sarimax", "xgboost", "prophet"] 
+DATASETS = ["energy"]  
+CORRUPTIONS = ["sensor_outage", "outliers", "gaussian_noise"]         
+MODELS = ["xgboost"] 
 
-RUN_SUFFIX = "_batch_1"
+RUN_SUFFIX = "parameter_og"
 
 # ==========================================
 # 2. HARDWARE CONCURRENCY LIMITS
@@ -58,19 +58,19 @@ def run_single_experiment(dataset, corruption, model):
     for line in process.stdout:
         full_log.append(line)
         if "BATCH_PROGRESS_25" in line:
-            logger.info(f"PROGRESS [{dataset} | {model}]: 25% completed")
+            logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 25% completed")
         elif "BATCH_PROGRESS_50" in line:
-            logger.info(f"PROGRESS [{dataset} | {model}]: 50% completed")
+            logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 50% completed")
         elif "BATCH_PROGRESS_75" in line:
-            logger.info(f"PROGRESS [{dataset} | {model}]: 75% completed")
+            logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 75% completed")
 
     process.wait()
     
     if process.returncode != 0:
         error_msg = "".join(full_log[-15:])
-        logger.error(f"FAILED: [{dataset} | {model}]\nError Snippet:\n{error_msg}")
+        logger.error(f"FAILED: [{dataset} | {corruption} | {model}]\nError Snippet:\n{error_msg}")
     else:
-        logger.info(f"COMPLETED: [{dataset} | {model}]")
+        logger.info(f"COMPLETED: [{dataset} | {corruption} | {model}]")
 
 def main():
     experiments = list(itertools.product(DATASETS, CORRUPTIONS, MODELS))

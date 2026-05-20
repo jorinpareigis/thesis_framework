@@ -28,32 +28,51 @@ def load_data(cfg):
     df = pd.read_csv(file_path, index_col=0, parse_dates=True)
     df = df.sort_index()
 
+    # Remove duplicate timestamps (e.g., caused by Daylight Saving Time)
+    df = df[~df.index.duplicated(keep='first')]
+
     data_freq = dataset_cfg.get("frequency", "h")
     df = df.asfreq(data_freq)
 
     if target_col not in df.columns:
         raise ValueError(f"Target column '{target_col}' not found in {file_path}.")
         
-    ts_data = df[target_col].ffill().bfill()
+    # Extract the raw target column (Do NOT impute yet to prevent test leakage)
+    ts_data = df[target_col]
 
     if subset_size is not None:
         total_len = len(ts_data)
+        
+        # Define the quarantine zone size based on the SARIMAX tuning chunk
+        tuning_size = subset_size 
+        
         if total_len > subset_size:
             # Lock the seed to ensure this run's data slice is strictly reproducible
             np.random.seed(cfg.seed)
             
             # Ensure the random start point leaves exactly enough room for the subset
             max_start_idx = total_len - subset_size
-            start_idx = np.random.randint(0, max_start_idx + 1)
+            
+            # CRITICAL FIX 2: Ensure we don't pull from the SARIMAX tuning quarantine zone
+            if max_start_idx <= tuning_size:
+                raise ValueError(f"Dataset is too small to quarantine the first {tuning_size} rows and sample {subset_size} rows.")
+            
+            # Randomly sample a start index strictly AFTER the quarantine zone
+            start_idx = np.random.randint(tuning_size, max_start_idx + 1)
             
             ts_data = ts_data.iloc[start_idx : start_idx + subset_size]
-            logger.info(f"Data sliced from random index {start_idx} using seed {cfg.seed}.")
+            logger.info(f"Data sliced from random index {start_idx} (safely past quarantine) using seed {cfg.seed}.")
         else:
-            ts_data = ts_data.iloc[-subset_size:]
-            logger.warning(f"Data length ({total_len}) <= subset_size. Using full available data.")
+            raise ValueError(f"Data length ({total_len}) <= subset_size ({subset_size}). Cannot perform quarantine and slice.")
 
-    train_data = ts_data.iloc[:-test_size]
-    test_data = ts_data.iloc[-test_size:]
+    # CRITICAL FIX 1: Split the data BEFORE imputing to prevent future test values 
+    # from leaking backwards into the training data via bfill()
+    train_raw = ts_data.iloc[:-test_size]
+    test_raw = ts_data.iloc[-test_size:]
+
+    # Independently impute train and test data
+    train_data = train_raw.ffill().bfill()
+    test_data = test_raw.ffill().bfill()
 
     logger.info(f"Train set size: {len(train_data)} | Test set size: {len(test_data)}")
 
