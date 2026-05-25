@@ -53,7 +53,7 @@ This project uses `uv`, an extremely fast Python package and project manager.
 **1. Clone the repository**
 
 ```bash
-git clone [https://github.com/jorinpareigis/thesis_framework.git](https://github.com/jorinpareigis/thesis_framework.git)
+git clone https://github.com/jorinpareigis/thesis_framework.git
 cd thesis_framework
 ```
 
