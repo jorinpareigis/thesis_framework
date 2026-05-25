@@ -76,7 +76,7 @@ uv sync
 For NVIDIA GPUs (CUDA 12.1):
 
 ```bash
-uv pip install torch --index-url [https://download.pytorch.org/whl/cu121](https://download.pytorch.org/whl/cu121)
+uv pip install torch --index-url https://download.pytorch.org/whl/cu121
 ```
 
 For CPU-only:
