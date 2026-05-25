@@ -10,7 +10,7 @@ from src.corruptions import apply_corruption
 
 logger = logging.getLogger(__name__)
 
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     """
     Generates visualizations of data corruptions at specific intensity steps 
@@ -29,9 +29,10 @@ def main(cfg: DictConfig):
     corruption_type = cfg.corruption.type
     original_method = cfg.corruption.method
     
-    steps_to_plot = [0, 10, 20, 30, 40]
+    # Updated to reflect the new 0-100% scale
+    steps_to_plot = [0.0, 25.0, 50.0, 75.0, 100.0]
     
-    for pct in steps_to_plot:
+    for corruption_level in steps_to_plot:
         fig = go.Figure()
         
         # 1. Plot the Clean Baseline
@@ -47,7 +48,7 @@ def main(cfg: DictConfig):
         if corruption_type in ["mcar", "sensor_outage"]:
             # Disable imputation temporarily to expose exact NaN locations
             cfg.corruption.method = "none"
-            corrupted = apply_corruption(train_clean, cfg, pct)
+            corrupted = apply_corruption(train_clean, cfg, corruption_level)
             cfg.corruption.method = original_method 
             
             missing_mask = corrupted.isna()
@@ -58,12 +59,12 @@ def main(cfg: DictConfig):
                     x=affected_points.index, 
                     y=affected_points.values, 
                     mode='markers', 
-                    name=f'Dropped Data ({pct}%)',
+                    name=f'Dropped Data ({corruption_level}%)',
                     marker=dict(color='red', size=6, symbol='x')
                 ))
                 
         elif corruption_type == "outliers":
-            corrupted = apply_corruption(train_clean, cfg, pct)
+            corrupted = apply_corruption(train_clean, cfg, corruption_level)
             
             # Mask to find EXACTLY which points were shifted
             # Using > 1e-6 handles microscopic floating-point rounding errors
@@ -75,28 +76,28 @@ def main(cfg: DictConfig):
                     x=affected_points.index, 
                     y=affected_points.values, 
                     mode='markers', 
-                    name=f'Outliers ({pct}%)',
+                    name=f'Outliers ({corruption_level}%)',
                     marker=dict(color='red', size=5)
                 ))
                 
         else:
             # For gaussian_noise and sensor_drift
-            corrupted = apply_corruption(train_clean, cfg, pct)
+            corrupted = apply_corruption(train_clean, cfg, corruption_level)
             
             # Only plot the red line if there is an actual difference (bypasses the 0% issue)
             affected_mask = (corrupted - train_clean).abs() > 1e-6
             
             if affected_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=corrupted.index, 
-                    y=corrupted.values, 
-                    mode='lines', 
-                    name=f'Corrupted Data ({pct}%)',
-                    line=dict(color='rgba(255, 0, 0, 0.7)', width=1)
+                        x=corrupted.index, 
+                        y=corrupted.values, 
+                        mode='lines', 
+                        name=f'Corrupted Data ({corruption_level}%)',
+                        line=dict(color='rgba(255, 0, 0, 0.7)', width=1)
                 ))
         
         fig.update_layout(
-            title=f"Dataset: {cfg.dataset.name} | Corruption: {cfg.corruption.type} | Intensity: {pct}/40",
+            title=f"Dataset: {cfg.dataset.name} | Corruption: {cfg.corruption.type} | Intensity: {corruption_level}%",
             xaxis_title="Time",
             yaxis_title="Value",
             template="plotly_white",
@@ -104,8 +105,8 @@ def main(cfg: DictConfig):
         )
         
         # Log via HTML wrapper to force manual dashboard rendering if needed
-        wandb.log({f"Step_{pct}": wandb.Html(fig.to_html(full_html=False, include_plotlyjs='cdn'))})
-        logger.info(f"Logged chart for step {pct} to W&B.")
+        wandb.log({f"Step_{corruption_level}": wandb.Html(fig.to_html(full_html=False, include_plotlyjs='cdn'))})
+        logger.info(f"Logged chart for step {corruption_level} to W&B.")
         
     wandb.finish()
 

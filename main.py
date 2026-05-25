@@ -3,6 +3,7 @@ from omegaconf import DictConfig, OmegaConf
 import wandb
 import logging
 import numpy as np
+import plotly.graph_objects as go
 from tqdm import tqdm
 
 from src.utils.validators import validate_configuration
@@ -34,9 +35,12 @@ def main(cfg: DictConfig):
     # OmegaConf.to_container converts the Hydra config into a standard Python dictionary.
     # This is required because WandB cannot natively serialize Hydra's internal object types.
     # resolve=True evaluates any interpolated variables (like ${dataset.seasonality}) before logging.
+    group_name = cfg.get("group_name", f"{cfg.dataset.name}_{cfg.corruption.type}")
+    
     wandb.init(
         project="thesis_framework",
         name=cfg.experiment_name,
+        group=group_name,  # Dynamically bundles tasks inside the requested dashboard folder
         config=OmegaConf.to_container(cfg, resolve=True)
     )
     
@@ -47,25 +51,18 @@ def main(cfg: DictConfig):
     # guaranteeing that the test set remains an uncorrupted ground truth benchmark.
     # removed data load from here inside the monte carlo loop
 
-    # 3. Execution Setup
-    # Define the number of Monte Carlo iterations for statistical robustness.
-    num_runs = cfg.get("num_runs", 10)
+    # --- 3. Execution Setup ---
+    num_runs = cfg.get("num_runs", 50)
     batch_mode = cfg.get("batch_mode", False)
     
-    # Generate the sequence of corruption intensities to test (e.g., 0.0%, 0.5%, 1.0%...).
-    corruption_steps = np.arange(
-        cfg.corruption_start, 
-        cfg.corruption_end + cfg.corruption_step, 
-        cfg.corruption_step
-    )
+    # Load the predefined 0-100% list from config.yaml
+    corruption_steps = cfg.corruption_steps
     
-    # Dictionary to aggregate results across all runs for each specific corruption level.
     aggregated_metrics = {
-        round(float(pct), 4): {"RMSE": [], "MAE": []} 
-        for pct in corruption_steps
+        float(level): {"RMSE": [], "MAE": []} 
+        for level in corruption_steps
     }
 
-    # Dictionary to track which milestones have been announced
     milestones = {25: False, 50: False, 75: False}
 
     # 4. Outer Loop: Multiple Seeds (Monte Carlo Simulation)
@@ -97,16 +94,12 @@ def main(cfg: DictConfig):
         train_clean, test_truth = load_data(cfg)
         test_size = cfg.dataset.test_size
         
-        # 5. Inner Loop: Corruption Scaling
-        # Progressively degrades the dataset to test the model's breaking point.
-        # Wrapped with tqdm to display a progress bar for the steps inside the current run.
-        for missing_pct in tqdm(corruption_steps, desc=f"Run {run + 1} Progress", leave=True, disable=batch_mode):
-            # Rounding prevents Python's floating-point precision errors (e.g., 0.500000001)
-            # from creating mismatched keys in the aggregated_metrics dictionary.
-            missing_pct = round(float(missing_pct), 4)
+        # --- 5. Inner Loop: Corruption Scaling ---
+        for corruption_level in tqdm(corruption_steps, desc=f"Run {run + 1} Progress", leave=True, disable=batch_mode):
+            corruption_level = float(corruption_level)
             
             # A. Corrupt Data
-            corrupted_train = apply_corruption(train_clean, cfg, missing_pct)
+            corrupted_train = apply_corruption(train_clean, cfg, corruption_level)
             
             # B. Instantiate and Train Model
             # Model selection routes the data to the appropriate class wrapper.
@@ -134,31 +127,94 @@ def main(cfg: DictConfig):
             metrics = evaluate_predictions(test_truth, predictions)
             
             # E. Store metrics for averaging
-            aggregated_metrics[missing_pct]["RMSE"].append(metrics["RMSE"])
-            aggregated_metrics[missing_pct]["MAE"].append(metrics["MAE"])
+            aggregated_metrics[corruption_level]["RMSE"].append(metrics["RMSE"])
+            aggregated_metrics[corruption_level]["MAE"].append(metrics["MAE"])
 
     # 6. Average and Log to W&B
     # Logging occurs only after all runs complete. Aggregating the data first ensures 
     # the WandB dashboard receives clean statistical summaries rather than noisy, individual run data.
+    # --- 6. Average and Log to W&B ---
     logger.info("--- Averaging Results and Logging to W&B ---")
-    for missing_pct, metrics_dict in aggregated_metrics.items():
+    for corruption_level, metrics_dict in aggregated_metrics.items():
         avg_rmse = np.mean(metrics_dict["RMSE"])
         std_rmse = np.std(metrics_dict["RMSE"])
         avg_mae = np.mean(metrics_dict["MAE"])
         std_mae = np.std(metrics_dict["MAE"])
         
-        # Push the final computed statistics to the cloud tracking dashboard.
         wandb.log({
-            "missing_pct": missing_pct,
+            "corruption_level": corruption_level,
             "RMSE_mean": avg_rmse,
             "RMSE_std": std_rmse,
             "MAE_mean": avg_mae,
             "MAE_std": std_mae
         })
         
-        logger.info(f"Pct: {missing_pct}% | Avg RMSE: {avg_rmse:.2f} | Avg MAE: {avg_mae:.2f}")
+        logger.info(f"Level: {corruption_level}% | Avg RMSE: {avg_rmse:.2f} | Avg MAE: {avg_mae:.2f}")
 
-    # Close the W&B run cleanly to free up system memory and finalize the cloud sync.
+    # --- Generate Interactive Plotly Degradation Curve ---
+    logger.info("Generating Plotly degradation chart with Spaghetti Plot overlay...")
+    
+    levels = list(aggregated_metrics.keys())
+    rmse_means = [np.mean(m["RMSE"]) for m in aggregated_metrics.values()]
+    rmse_maxes = [np.max(m["RMSE"]) for m in aggregated_metrics.values()]
+    rmse_mins = [np.min(m["RMSE"]) for m in aggregated_metrics.values()]
+
+    fig = go.Figure()
+
+    # 1. Add Spaghetti Plot: Plot every single Monte Carlo run individual line
+    num_simulations = len(list(aggregated_metrics.values())[0]["RMSE"])
+    
+    for run_idx in range(num_simulations):
+        run_y_values = [m["RMSE"][run_idx] for m in aggregated_metrics.values()]
+        show_legend_flag = True if run_idx == 0 else False
+        
+        fig.add_trace(go.Scatter(
+            x=levels,
+            y=run_y_values,
+            mode='lines',
+            # EDIT HERE: Changed opacity from 0.08 to 0.22 to make lines more potent/visible
+            line=dict(color='rgba(0, 150, 130, 0.22)', width=1), 
+            name='Individual MC Runs',
+            legendgroup='spaghetti',  # Groups all 50 lines together logically
+            showlegend=show_legend_flag,
+            hoverinfo="skip" 
+        ))
+
+    # 2. Add Envelope Boundary Band (Shaded Area between Min and Max observed performance)
+    fig.add_trace(go.Scatter(
+        x=levels + levels[::-1],
+        y=rmse_maxes + rmse_mins[::-1],  
+        fill='toself',
+        fillcolor='rgba(0,100,80,0.05)', 
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo="skip",
+        name='Observed Range (Min/Max)',
+        showlegend=True 
+    ))
+
+    # 3. Add Main Mean Line with Fixed Markers (Dots)
+    fig.add_trace(go.Scatter(
+        x=levels,
+        y=rmse_means,
+        mode='lines+markers',  
+        marker=dict(size=7, symbol='circle', color='rgb(0,100,80)'),
+        line=dict(width=2.5, color='rgb(0,100,80)'),
+        name='RMSE Mean',
+    ))
+
+    fig.update_layout(
+        title=f"RMSE Degradation Curve & Spaghetti Overlay: {cfg.model.name.upper()} on {cfg.dataset.name.upper()}", 
+        xaxis_title="Corruption Level (%)", 
+        yaxis_title="RMSE",
+        yaxis=dict(rangemode="nonnegative"), 
+        template="plotly_white",
+        hovermode="x unified"
+    )
+    
+    # Log the interactive chart as an HTML object to a panel in W&B
+    wandb.log({"RMSE_Detailed_Degradation_Chart": wandb.Html(fig.to_html(full_html=False, include_plotlyjs='cdn'))})
+
+    # Close the W&B run cleanly
     wandb.finish()
     logger.info("Experiment completed successfully.")
 
@@ -168,4 +224,5 @@ if __name__ == "__main__":
 # Example terminal commands for execution:
 # python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_0.0.1"
 # python main.py dataset=iot_temp corruption=gaussian_noise model=xgboost run_suffix="_0.0.1"
-# python main.py dataset=sp500 corruption=mcar model=xgboost run_suffix="_new_parameters"
+# python main.py dataset=sp500 corruption=outliers model=xgboost run_suffix="_test"
+# python -m scripts.visualize_corruptions dataset=iot_temp corruption=gaussian_noise

@@ -33,7 +33,7 @@ thesis_framework/
 │   ├── model/               # Model-specific hyperparameters
 │   └── config.yaml          # Global orchestrator parameters
 ├── data/                    # Local CSV datasets (git-ignored)
-├── scripts/                 # Automated data fetching and cleaning scripts
+├── scripts/                 # Automated data fetching and misc. scripts
 ├── src/
 │   ├── models/              # Model wrappers (XGBoost, LSTM, Chronos, etc.)
 │   ├── utils/               # Validators and helpers

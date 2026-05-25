@@ -23,7 +23,7 @@ def load_data(cfg):
     test_size = dataset_cfg.test_size
     subset_size = dataset_cfg.get("subset_size", None)
 
-    logger.info(f"Loading data from: {file_path}")
+    # logger.info(f"Loading data from: {file_path}")
     
     df = pd.read_csv(file_path, index_col=0, parse_dates=True)
     df = df.sort_index()
@@ -61,7 +61,7 @@ def load_data(cfg):
             start_idx = np.random.randint(tuning_size, max_start_idx + 1)
             
             ts_data = ts_data.iloc[start_idx : start_idx + subset_size]
-            logger.info(f"Data sliced from random index {start_idx} (safely past quarantine) using seed {cfg.seed}.")
+            logger.info(f"Data sliced from random index {start_idx}.")
         else:
             raise ValueError(f"Data length ({total_len}) <= subset_size ({subset_size}). Cannot perform quarantine and slice.")
 
@@ -74,6 +74,6 @@ def load_data(cfg):
     train_data = train_raw.ffill().bfill()
     test_data = test_raw.ffill().bfill()
 
-    logger.info(f"Train set size: {len(train_data)} | Test set size: {len(test_data)}")
+    # logger.info(f"Train set size: {len(train_data)} | Test set size: {len(test_data)}")
 
     return train_data, test_data

@@ -4,15 +4,10 @@ defaults:
   - corruption: mcar
   - model: xgboost
 
-# A placeholder for terminal overrides. Defaults to nothing.
 run_suffix: ""
-
-# Dynamically builds the name (e.g., "pjm_energy_xgboost_mcar")
 experiment_name: "${dataset.name}_${corruption.type}_${model.name}${run_suffix}"
 
 seed: 42
-num_runs: 25
+num_runs: 50
 
-corruption_start: 0
-corruption_end: 40
-corruption_step: 1
+corruption_steps: [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 37.5, 50.0, 62.5, 75.0, 87.5, 100.0]

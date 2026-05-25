@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 # ==========================================
 # 1. DEFINE YOUR EXPERIMENT GRID
 # ==========================================
-DATASETS = ["energy"]  
-CORRUPTIONS = ["sensor_outage", "outliers", "gaussian_noise"]         
-MODELS = ["xgboost"] 
+DATASETS = ["energy"]
+CORRUPTIONS = ["mcar"]
+MODELS = ["xgboost", "sarimax", "naive", "prophet", "chronos"]
 
-RUN_SUFFIX = "parameter_og"
+RUN_SUFFIX = "_batch_1.0"
 
 # ==========================================
 # 2. HARDWARE CONCURRENCY LIMITS
@@ -25,13 +25,16 @@ MAX_GPU_WORKERS = 1
 GPU_MODELS = {"lstm", "chronos"}
 
 def run_single_experiment(dataset, corruption, model):
+    target_group = f"{dataset}_{corruption}"
+
     cmd = [
         "python", "main.py",
         f"dataset={dataset}",
         f"corruption={corruption}",
         f"model={model}",
         f"run_suffix={RUN_SUFFIX}",
-        "+batch_mode=True"  # Dynamically adds the batch_mode flag to Hydra
+        f"+group_name={target_group}",  # Appends the dynamic group key into Hydra
+        "+batch_mode=True"
     ]
     
     #if model == "naive":

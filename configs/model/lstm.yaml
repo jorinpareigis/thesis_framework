@@ -2,7 +2,7 @@ name: "lstm"
 lookback_window: ${dataset.context_window}
 hidden_size: 50       # Aligned with Elsworth & Güttel (2020)
 num_layers: 2         # Aligned with Elsworth & Güttel (2020)
-learning_rate: 0.001  # Aligned with Elsworth & Güttel (2020)
+learning_rate: 0.0056  # calculated using the square root scaling rule (Krizhevsky, 2014)
 epochs: 50
 batch_size: 32        # Adapted for computational feasibility
 dropout: 0.2          # Adapted for noisy/corrupted data

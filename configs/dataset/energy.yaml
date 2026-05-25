@@ -1,4 +1,4 @@
-name: "pjm_energy"
+name: "energy"
 file_path: "data/PJME_hourly.csv"
 target_column: "PJME_MW"
 frequency: "h"
@@ -9,5 +9,5 @@ context_window: 48   # used for LSTM and XGBoost
 
 prophet_seasonality_mode: "additive"
 
-sarimax_order: [2, 1, 2]
-sarimax_seasonal_order: [2, 0, 1, 24]
+sarimax_order: [1, 0, 0] # changed from [2, 1, 2] to [1, 0, 0] the later is better
+sarimax_seasonal_order: [0, 1, 0, 24] # changed from [2, 0, 1, 24] to [0, 0, 0, 24] then to [0, 1, 0, 24] the last is better

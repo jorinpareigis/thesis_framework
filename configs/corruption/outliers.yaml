@@ -1,3 +1,2 @@
 type: "outliers"
 method: "none"
-intensity: 5.0   # multiplier applied to the std. dev.

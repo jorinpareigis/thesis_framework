@@ -1,3 +1,2 @@
 type: "sensor_drift"
 method: "none"
-max_drift_std: 3.0  # The maximum magnitude of the drift in standard deviations at step 40
