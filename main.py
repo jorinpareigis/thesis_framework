@@ -56,7 +56,7 @@ def main(cfg: DictConfig):
     batch_mode = cfg.get("batch_mode", False)
     
     # Load the predefined 0-100% list from config.yaml
-    corruption_steps = cfg.corruption_steps
+    corruption_steps = cfg.get("corruption_steps", [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 37.5, 50.0, 62.5, 75.0, 87.5, 100.0])
     
     aggregated_metrics = {
         float(level): {"RMSE": [], "MAE": []} 
