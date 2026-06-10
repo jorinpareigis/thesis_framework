@@ -53,7 +53,7 @@ This project uses `uv`, an extremely fast Python package and project manager.
 **1. Clone the repository**
 
 ```bash
-git clone [https://github.com/jorinpareigis/thesis_framework.git](https://github.com/jorinpareigis/thesis_framework.git)
+git clone https://github.com/jorinpareigis/thesis_framework.git
 cd thesis_framework
 ```
 
@@ -76,7 +76,7 @@ uv sync
 For NVIDIA GPUs (CUDA 12.1):
 
 ```bash
-uv pip install torch --index-url [https://download.pytorch.org/whl/cu121](https://download.pytorch.org/whl/cu121)
+uv pip install torch --index-url https://download.pytorch.org/whl/cu121
 ```
 
 For CPU-only:
