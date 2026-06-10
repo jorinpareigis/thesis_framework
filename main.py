@@ -1,3 +1,4 @@
+import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
@@ -130,32 +131,35 @@ def main(cfg: DictConfig):
             aggregated_metrics[corruption_level]["RMSE"].append(metrics["RMSE"])
             aggregated_metrics[corruption_level]["MAE"].append(metrics["MAE"])
 
-    # 6. Average and Log to W&B
-    # Logging occurs only after all runs complete. Aggregating the data first ensures 
-    # the WandB dashboard receives clean statistical summaries rather than noisy, individual run data.
-    # --- 6. Average and Log to W&B ---
+# --- 6. Average and Log to W&B ---
     logger.info("--- Averaging Results and Logging to W&B ---")
     for corruption_level, metrics_dict in aggregated_metrics.items():
         avg_rmse = np.mean(metrics_dict["RMSE"])
         std_rmse = np.std(metrics_dict["RMSE"])
+        med_rmse = np.median(metrics_dict["RMSE"])
+        
         avg_mae = np.mean(metrics_dict["MAE"])
         std_mae = np.std(metrics_dict["MAE"])
+        med_mae = np.median(metrics_dict["MAE"])
         
         wandb.log({
             "corruption_level": corruption_level,
             "RMSE_mean": avg_rmse,
             "RMSE_std": std_rmse,
+            "RMSE_median": med_rmse,
             "MAE_mean": avg_mae,
-            "MAE_std": std_mae
+            "MAE_std": std_mae,
+            "MAE_median": med_mae
         })
         
-        logger.info(f"Level: {corruption_level}% | Avg RMSE: {avg_rmse:.2f} | Avg MAE: {avg_mae:.2f}")
+        logger.info(f"Level: {corruption_level}% | Avg RMSE: {avg_rmse:.2f} | Med RMSE: {med_rmse:.2f} | Avg MAE: {avg_mae:.2f}")
 
     # --- Generate Interactive Plotly Degradation Curve ---
     logger.info("Generating Plotly degradation chart with Spaghetti Plot overlay...")
     
     levels = list(aggregated_metrics.keys())
     rmse_means = [np.mean(m["RMSE"]) for m in aggregated_metrics.values()]
+    rmse_medians = [np.median(m["RMSE"]) for m in aggregated_metrics.values()]
     rmse_maxes = [np.max(m["RMSE"]) for m in aggregated_metrics.values()]
     rmse_mins = [np.min(m["RMSE"]) for m in aggregated_metrics.values()]
 
@@ -172,10 +176,9 @@ def main(cfg: DictConfig):
             x=levels,
             y=run_y_values,
             mode='lines',
-            # EDIT HERE: Changed opacity from 0.08 to 0.22 to make lines more potent/visible
             line=dict(color='rgba(0, 150, 130, 0.22)', width=1), 
             name='Individual MC Runs',
-            legendgroup='spaghetti',  # Groups all 50 lines together logically
+            legendgroup='spaghetti',  
             showlegend=show_legend_flag,
             hoverinfo="skip" 
         ))
@@ -192,7 +195,7 @@ def main(cfg: DictConfig):
         showlegend=True 
     ))
 
-    # 3. Add Main Mean Line with Fixed Markers (Dots)
+    # 3. Add Main Mean Line with Fixed Markers (Circles)
     fig.add_trace(go.Scatter(
         x=levels,
         y=rmse_means,
@@ -202,8 +205,18 @@ def main(cfg: DictConfig):
         name='RMSE Mean',
     ))
 
+    # 4. Add Median Line with Fixed Markers (Squares)
+    fig.add_trace(go.Scatter(
+        x=levels,
+        y=rmse_medians,
+        mode='lines+markers',  
+        marker=dict(size=7, symbol='square', color='rgb(200,80,0)'), # Distinct contrasting color
+        line=dict(width=2.5, color='rgb(200,80,0)'),
+        name='RMSE Median',
+    ))
+
     fig.update_layout(
-        title=f"RMSE Degradation Curve & Spaghetti Overlay: {cfg.model.name.upper()} on {cfg.dataset.name.upper()}", 
+        title=f"RMSE: {cfg.model.name.upper()} on {cfg.dataset.name.upper()} with {cfg.corruption.type.upper()}", 
         xaxis_title="Corruption Level (%)", 
         yaxis_title="RMSE",
         yaxis=dict(rangemode="nonnegative"), 
@@ -214,6 +227,23 @@ def main(cfg: DictConfig):
     # Log the interactive chart as an HTML object to a panel in W&B
     wandb.log({"RMSE_Detailed_Degradation_Chart": wandb.Html(fig.to_html(full_html=False, include_plotlyjs='cdn'))})
 
+    # --- Export High-Resolution PDF for LaTeX ---
+    logger.info("Exporting high-resolution PDF via Kaleido...")
+    
+    # Create dynamic names based on the Hydra config
+    folder_name = f"{cfg.dataset.name}_{cfg.corruption.type}"
+    file_name = f"{cfg.dataset.name}_{cfg.corruption.type}_{cfg.model.name}{cfg.run_suffix}.pdf"
+    
+    # Safely build the directory path: images/[dataset]_[corruption]/
+    save_dir = os.path.join("images", folder_name)
+    os.makedirs(save_dir, exist_ok=True) 
+    
+    # Build final file path and write
+    save_path = os.path.join(save_dir, file_name)
+    fig.write_image(save_path, engine="kaleido", width=1400, height=600)
+    
+    logger.info(f"PDF successfully saved to: {save_path}")
+
     # Close the W&B run cleanly
     wandb.finish()
     logger.info("Experiment completed successfully.")
@@ -222,7 +252,7 @@ if __name__ == "__main__":
     main()
 
 # Example terminal commands for execution:
-# python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_0.0.1"
+# python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_median_test"
 # python main.py dataset=iot_temp corruption=gaussian_noise model=xgboost run_suffix="_0.0.1"
 # python main.py dataset=sp500 corruption=outliers model=xgboost run_suffix="_test"
 # python -m scripts.visualize_corruptions dataset=iot_temp corruption=gaussian_noise

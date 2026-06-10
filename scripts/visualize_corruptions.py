@@ -1,3 +1,4 @@
+import os
 import hydra
 from omegaconf import DictConfig
 import wandb
@@ -107,6 +108,19 @@ def main(cfg: DictConfig):
         # Log via HTML wrapper to force manual dashboard rendering if needed
         wandb.log({f"Step_{corruption_level}": wandb.Html(fig.to_html(full_html=False, include_plotlyjs='cdn'))})
         logger.info(f"Logged chart for step {corruption_level} to W&B.")
+        
+        # --- Export High-Resolution PDF for LaTeX ---
+        # Safely build the directory path: images/viz/[corruption_type]/
+        save_dir = os.path.join("images", "viz", cfg.corruption.type)
+        os.makedirs(save_dir, exist_ok=True) 
+        
+        # Build final file path (Appending the intensity step so files don't overwrite)
+        file_name = f"{cfg.dataset.name}_{cfg.corruption.type}_{int(corruption_level)}.pdf"
+        save_path = os.path.join(save_dir, file_name)
+        
+        # Export with the same wide 2:1 aspect ratio used in main.py
+        fig.write_image(save_path, engine="kaleido", width=1400, height=600)
+        logger.info(f"Visualizer PDF saved to: {save_path}")
         
     wandb.finish()
 

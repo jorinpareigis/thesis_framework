@@ -16,6 +16,7 @@ data/
 # Logs and Framework Outputs
 wandb/
 outputs/
+images/
 multirun/
 *.log
 tea_debug.log
