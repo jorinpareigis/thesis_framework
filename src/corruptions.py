@@ -29,21 +29,26 @@ def apply_corruption(train_data: pd.Series, cfg, corruption_level: float) -> pd.
         # 100% corruption_level equates to dropping 40% of the dataset
         num_to_drop = int(len(corrupted_data) * (corruption_level / 100.0) * 0.40)
         if num_to_drop > 0:
-            np.random.seed(cfg.seed)
+            np.random.seed(cfg.current_corr_seed)
             drop_indices = np.random.choice(
                 corrupted_data.index, 
                 size=num_to_drop, 
                 replace=False
             )
             corrupted_data.loc[drop_indices] = np.nan
-    
+            
     elif corruption_type == "outliers":
         # 100% corruption_level equates to 40% of rows becoming outliers
         num_outliers = int(len(corrupted_data) * (corruption_level / 100.0) * 0.40)
         if num_outliers > 0:
-            np.random.seed(cfg.seed)
+            np.random.seed(cfg.current_corr_seed)
             all_indices = np.random.permutation(corrupted_data.index)
-            all_directions = np.random.choice([1, -1], size=len(corrupted_data))
+            
+            # Domain Constraint: Air quality outliers must be strictly positive
+            if cfg.dataset.name == "air_quality":
+                all_directions = np.ones(len(corrupted_data))
+            else:
+                all_directions = np.random.choice([1, -1], size=len(corrupted_data))
             
             outlier_indices = all_indices[:num_outliers]
             directions = all_directions[:num_outliers]
@@ -55,7 +60,7 @@ def apply_corruption(train_data: pd.Series, cfg, corruption_level: float) -> pd.
             corrupted_data.loc[outlier_indices] += shift
 
     elif corruption_type == "gaussian_noise":
-        np.random.seed(cfg.seed)
+        np.random.seed(cfg.current_corr_seed)
         # At 100% corruption, noise std_dev is 50% (0.5) of the dataset's std_dev
         intensity_scalar = (corruption_level / 100.0) * 0.5
         
@@ -69,7 +74,7 @@ def apply_corruption(train_data: pd.Series, cfg, corruption_level: float) -> pd.
         # 100% corruption equates to 40% of the dataset dropped in blocks
         num_to_drop = int(len(corrupted_data) * (corruption_level / 100.0) * 0.40)
         if num_to_drop > 0:
-            np.random.seed(cfg.seed)
+            np.random.seed(cfg.current_corr_seed)
             n_rows = len(corrupted_data)
             
             mu, sigma = 2.0, 1.0 
@@ -94,10 +99,12 @@ def apply_corruption(train_data: pd.Series, cfg, corruption_level: float) -> pd.
                             break
                             
             corrupted_data.iloc[drop_indices] = np.nan
-    
+            
     elif corruption_type == "sensor_drift":
-        np.random.seed(cfg.seed)
-        direction = np.random.choice([1, -1])
+        np.random.seed(cfg.current_corr_seed)
+        
+        # Domain Constraint: Drift is strictly positive (monotonic increase)
+        direction = 1 
         
         # Progression from 0.0 to 1.0
         step_ratio = corruption_level / 100.0
@@ -126,4 +133,6 @@ def apply_corruption(train_data: pd.Series, cfg, corruption_level: float) -> pd.
     else:
         raise NotImplementedError(f"Imputation method '{imputation_method}' is not recognized.")
         
-    return imputed_data
+    # --- PHYSICAL DOMAIN CONSTRAINT ---
+    # Apply hard floor at 0.0
+    return imputed_data.clip(lower=0.0)

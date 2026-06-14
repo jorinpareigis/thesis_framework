@@ -69,12 +69,18 @@ def main(cfg: DictConfig):
     # 4. Outer Loop: Multiple Seeds (Monte Carlo Simulation)
     # Running the experiment multiple times with different seeds captures both the 
     # expected performance (mean) and the variance (standard deviation) of the models.
+    # 4. Outer Loop: Multiple Seeds (Monte Carlo Simulation)
     for run in range(num_runs):
-        # Generate a unique, deterministic seed for this specific run.
-        # This ensures the random variations applied in corruptions.py follow a unique 
-        # but reproducible path for every iteration.
-        current_seed = cfg.seed + run
-        cfg.seed = current_seed  # Update cfg so corruptions.py reads the new seed
+        # Allow dynamic addition/modification of config keys during execution
+        OmegaConf.set_struct(cfg, False)
+        
+        # Calculate isolated seeds. If fixed, use base seed. If varying, increment by run index.
+        cfg.current_data_seed = cfg.seed if cfg.fix_dataset_seed else cfg.seed + run
+        cfg.current_corr_seed = cfg.seed if cfg.fix_corruption_seed else cfg.seed + run
+        cfg.current_model_seed = cfg.seed if cfg.fix_model_seed else cfg.seed + run
+        
+        # Re-lock the config to prevent accidental mutations elsewhere
+        OmegaConf.set_struct(cfg, True)
 
         # --- Milestone Reporting ---
         progress_pct = (run / num_runs) * 100
@@ -89,7 +95,8 @@ def main(cfg: DictConfig):
             milestones[75] = True
         
         if not batch_mode:
-            logger.info(f"=== Starting Run {run + 1}/{num_runs} with Seed {current_seed} ===")
+            logger.info(f"=== Starting Run {run + 1}/{num_runs} ===")
+            logger.info(f"Active Seeds -> Data: {cfg.current_data_seed} | Corruption: {cfg.current_corr_seed} | Model: {cfg.current_model_seed}")
 
         # MOVED HERE: Load a new randomized data slice for this specific run
         train_clean, test_truth = load_data(cfg)
@@ -157,13 +164,34 @@ def main(cfg: DictConfig):
     # --- Generate Interactive Plotly Degradation Curve ---
     logger.info("Generating Plotly degradation chart with Spaghetti Plot overlay...")
     
-    levels = list(aggregated_metrics.keys())
-    rmse_means = [np.mean(m["RMSE"]) for m in aggregated_metrics.values()]
-    rmse_medians = [np.median(m["RMSE"]) for m in aggregated_metrics.values()]
-    rmse_maxes = [np.max(m["RMSE"]) for m in aggregated_metrics.values()]
-    rmse_mins = [np.min(m["RMSE"]) for m in aggregated_metrics.values()]
+    # Ensure levels are strictly sorted for accurate trapezoidal integration
+    levels = sorted(list(aggregated_metrics.keys()))
+    rmse_means = [np.mean(aggregated_metrics[l]["RMSE"]) for l in levels]
+    rmse_medians = [np.median(aggregated_metrics[l]["RMSE"]) for l in levels]
+    rmse_maxes = [np.max(aggregated_metrics[l]["RMSE"]) for l in levels]
+    rmse_mins = [np.min(aggregated_metrics[l]["RMSE"]) for l in levels]
+
+    # --- 7. Calculate and Log Summary Table Metrics ---
+    # Normalize x-axis to 0.0 - 1.0 scale
+    normalized_levels = [l / 100.0 for l in levels]
+    
+    # Calculate Area Under the Degradation Curve
+    audc = np.trapz(y=rmse_medians, x=normalized_levels)
+    
+    # Extract Baseline (0% corruption)
+    baseline_rmse = rmse_medians[0]
+    
+    # Calculate Degradation Factor
+    degradation_factor = audc / baseline_rmse if baseline_rmse != 0 else float('inf')
+
+    # Log to W&B Summary (Creates dedicated columns in the project table)
+    wandb.run.summary["Table_Baseline_RMSE"] = baseline_rmse
+    wandb.run.summary["Table_Degradation_AUDC"] = audc
+    wandb.run.summary["Table_Degradation_Factor"] = degradation_factor
 
     fig = go.Figure()
+    
+    # ... (Keep the rest of your fig.add_trace plotting code exactly as it is) ...
 
     # 1. Add Spaghetti Plot: Plot every single Monte Carlo run individual line
     num_simulations = len(list(aggregated_metrics.values())[0]["RMSE"])
@@ -255,4 +283,4 @@ if __name__ == "__main__":
 # python main.py dataset=air_quality corruption=outliers model=naive model.strategy=forward_fill run_suffix="_median_test"
 # python main.py dataset=iot_temp corruption=gaussian_noise model=xgboost run_suffix="_0.0.1"
 # python main.py dataset=sp500 corruption=outliers model=xgboost run_suffix="_test"
-# python -m scripts.visualize_corruptions dataset=iot_temp corruption=gaussian_noise
+# python -m scripts.visualize_corruptions

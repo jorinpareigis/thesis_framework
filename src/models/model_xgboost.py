@@ -25,7 +25,7 @@ class XGBoostModel(BaseForecastingModel):
             # Set to standard regression loss.
             objective='reg:squarederror',
             # Seed propagation ensures tree building is deterministic across Monte Carlo runs.
-            random_state=cfg.seed
+            random_state=cfg.current_model_seed
         )
         # Stores the final data window from the training set to bootstrap the prediction phase.
         self.last_known_data = None

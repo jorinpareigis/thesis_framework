@@ -48,7 +48,7 @@ def load_data(cfg):
         
         if total_len > subset_size:
             # Lock the seed to ensure this run's data slice is strictly reproducible
-            np.random.seed(cfg.seed)
+            np.random.seed(cfg.current_data_seed)
             
             # Ensure the random start point leaves exactly enough room for the subset
             max_start_idx = total_len - subset_size

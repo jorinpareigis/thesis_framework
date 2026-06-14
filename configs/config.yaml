@@ -11,3 +11,15 @@ seed: 42
 num_runs: 50
 
 corruption_steps: [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 37.5, 50.0, 62.5, 75.0, 87.5, 100.0]
+
+# --- Seed Isolation Controls ---
+# Set to true to freeze the random state across all Monte Carlo runs.
+# Set to false to vary the random state for each run.
+fix_dataset_seed: true
+fix_corruption_seed: false
+fix_model_seed: false
+
+# Placeholders for dynamic execution (do not change these manually)
+current_data_seed: ${seed}
+current_corr_seed: ${seed}
+current_model_seed: ${seed}

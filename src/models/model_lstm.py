@@ -4,7 +4,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import pandas as pd
 import logging
-import random # Add this import
+import random
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 from .base_model import BaseForecastingModel
@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 # --- 1. The Neural Network Architecture ---
 class PyTorchLSTM(nn.Module):
-    # ... (Keep this class exactly as it is) ...
     def __init__(self, input_size=1, hidden_size=50, num_layers=2, output_size=1, dropout=0.2):
         super(PyTorchLSTM, self).__init__()
         self.hidden_size = hidden_size
@@ -42,11 +41,13 @@ class LSTMModel(BaseForecastingModel):
         self.epochs = model_cfg.epochs
         self.batch_size = model_cfg.batch_size
         self.lr = model_cfg.learning_rate
-        self.seed = cfg.seed # Capture the seed from Hydra
+        
+        # Capture the isolated model seed from Hydra
+        self.seed = cfg.current_model_seed 
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # CRITICAL FIX 3: Force deterministic weight initialization
+        # Force deterministic weight initialization
         self._set_seed()
         
         # Instantiate the architecture AFTER setting the seed
@@ -66,12 +67,11 @@ class LSTMModel(BaseForecastingModel):
         torch.manual_seed(self.seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(self.seed)
-            # Enforce deterministic cuDNN algorithms
-            torch.backends.cudnn.deterministic = True
+            # Enforce deterministic cuDNN algorithms but slows down learning, True means slow but same, False means different but faster
+            torch.backends.cudnn.deterministic = False
             torch.backends.cudnn.benchmark = False
 
     def _create_sequences(self, data: np.ndarray):
-        # ... (Keep this method exactly as it is) ...
         X, y = [], []
         for i in range(len(data) - self.window):
             X.append(data[i : i + self.window])
@@ -81,7 +81,7 @@ class LSTMModel(BaseForecastingModel):
     def train(self, train_data: pd.Series):
         """Normalizes data, builds sequences, and executes the PyTorch training loop."""
         
-        # CRITICAL FIX 4: Guard against un-imputed NaNs silently ruining loss metrics
+        # Guard against un-imputed NaNs silently ruining loss metrics
         if train_data.isna().any():
             raise ValueError("Training data contains NaNs. Use an imputation method in your corruption config.")
             
@@ -98,7 +98,7 @@ class LSTMModel(BaseForecastingModel):
         # Create DataLoader for batching
         dataset = TensorDataset(X_tensor, y_tensor)
         
-        # CRITICAL FIX 3: Force the DataLoader's shuffle mechanism to be deterministic
+        # Force the DataLoader's shuffle mechanism to be deterministic
         g = torch.Generator()
         g.manual_seed(self.seed)
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, generator=g)
@@ -121,7 +121,6 @@ class LSTMModel(BaseForecastingModel):
                 optimizer.step()
 
     def predict(self, steps: int) -> list:
-        # ... (Keep this method exactly as it is) ...
         self.model.eval()
         predictions = []
         current_seq = torch.tensor(self.last_sequence, dtype=torch.float32).unsqueeze(0).to(self.device)

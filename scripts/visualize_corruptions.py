@@ -1,36 +1,34 @@
 import os
-import hydra
-from omegaconf import DictConfig
+import logging
 import wandb
 import plotly.graph_objects as go
-import logging
+from omegaconf import DictConfig
+from hydra import initialize, compose
 
 from src.utils.validators import validate_configuration
 from src.data_loader import load_data
 from src.corruptions import apply_corruption
 
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
-def main(cfg: DictConfig):
+def generate_visualizations(cfg: DictConfig):
     """
-    Generates visualizations of data corruptions at specific intensity steps 
-    and logs them as interactive Plotly charts to Weights & Biases.
+    Core logic to generate and export visualizations for a single configuration.
     """
     validate_configuration(cfg)
     
     wandb.init(
         project="thesis_framework",
         name=f"viz_{cfg.dataset.name}_{cfg.corruption.type}",
-        job_type="visualization"
+        job_type="visualization",
+        reinit=True # Ensures W&B allows consecutive runs in the same script
     )
     
     train_clean, _ = load_data(cfg)
     
     corruption_type = cfg.corruption.type
     original_method = cfg.corruption.method
-    
-    # Updated to reflect the new 0-100% scale
     steps_to_plot = [0.0, 25.0, 50.0, 75.0, 100.0]
     
     for corruption_level in steps_to_plot:
@@ -47,7 +45,6 @@ def main(cfg: DictConfig):
         
         # 2. Generate the Corrupted Data
         if corruption_type in ["mcar", "sensor_outage"]:
-            # Disable imputation temporarily to expose exact NaN locations
             cfg.corruption.method = "none"
             corrupted = apply_corruption(train_clean, cfg, corruption_level)
             cfg.corruption.method = original_method 
@@ -66,9 +63,6 @@ def main(cfg: DictConfig):
                 
         elif corruption_type == "outliers":
             corrupted = apply_corruption(train_clean, cfg, corruption_level)
-            
-            # Mask to find EXACTLY which points were shifted
-            # Using > 1e-6 handles microscopic floating-point rounding errors
             affected_mask = (corrupted - train_clean).abs() > 1e-6
             affected_points = corrupted[affected_mask]
             
@@ -82,10 +76,7 @@ def main(cfg: DictConfig):
                 ))
                 
         else:
-            # For gaussian_noise and sensor_drift
             corrupted = apply_corruption(train_clean, cfg, corruption_level)
-            
-            # Only plot the red line if there is an actual difference (bypasses the 0% issue)
             affected_mask = (corrupted - train_clean).abs() > 1e-6
             
             if affected_mask.any():
@@ -105,24 +96,45 @@ def main(cfg: DictConfig):
             hovermode="x unified"
         )
         
-        # Log via HTML wrapper to force manual dashboard rendering if needed
         wandb.log({f"Step_{corruption_level}": wandb.Html(fig.to_html(full_html=False, include_plotlyjs='cdn'))})
-        logger.info(f"Logged chart for step {corruption_level} to W&B.")
         
         # --- Export High-Resolution PDF for LaTeX ---
-        # Safely build the directory path: images/viz/[corruption_type]/
         save_dir = os.path.join("images", "viz", cfg.corruption.type)
         os.makedirs(save_dir, exist_ok=True) 
         
-        # Build final file path (Appending the intensity step so files don't overwrite)
         file_name = f"{cfg.dataset.name}_{cfg.corruption.type}_{int(corruption_level)}.pdf"
         save_path = os.path.join(save_dir, file_name)
         
-        # Export with the same wide 2:1 aspect ratio used in main.py
         fig.write_image(save_path, engine="kaleido", width=1400, height=600)
         logger.info(f"Visualizer PDF saved to: {save_path}")
         
     wandb.finish()
+
+def main():
+    """
+    Iterates through all defined logical dataset and corruption combinations,
+    initializing Hydra dynamically for each run.
+    """
+    valid_combinations = {
+        "sp500": ["mcar", "outliers"],
+        "energy": ["mcar", "outliers", "sensor_outage", "gaussian_noise"],
+        "iot_temp": ["mcar", "outliers", "sensor_outage", "sensor_drift", "gaussian_noise"],
+        "air_quality": ["mcar", "outliers", "sensor_outage", "sensor_drift", "gaussian_noise"]
+    }
+
+    # Initialize Hydra once pointing to the configs directory
+    with initialize(version_base=None, config_path="../configs"):
+        for dataset, corruptions in valid_combinations.items():
+            for corruption in corruptions:
+                logger.info(f"=== Starting Visualization Batch: {dataset.upper()} + {corruption.upper()} ===")
+                
+                # Compose the nested YAML configuration dynamically
+                cfg = compose(config_name="config", overrides=[
+                    f"dataset={dataset}", 
+                    f"corruption={corruption}"
+                ])
+                
+                generate_visualizations(cfg)
 
 if __name__ == "__main__":
     main()
