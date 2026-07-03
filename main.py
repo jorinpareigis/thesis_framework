@@ -284,3 +284,4 @@ if __name__ == "__main__":
 # python main.py dataset=iot_temp corruption=gaussian_noise model=xgboost run_suffix="_0.0.1"
 # python main.py dataset=sp500 corruption=outliers model=xgboost run_suffix="_test"
 # python -m scripts.visualize_corruptions
+# python -m scripts.visualize_grid

@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 # ==========================================
 # 1. DEFINE YOUR EXPERIMENT GRID
 # ==========================================
-DATASETS = ["iot_temp"]
+DATASETS = ["energy", "iot_temp"]
 CORRUPTIONS = ["sensor_drift"]
 MODELS = ["chronos", "lstm", "naive", "prophet", "sarimax", "xgboost"]
 
-RUN_SUFFIX = "_final_1.1"
+RUN_SUFFIX = "_final_1.2"
 
 # ==========================================
 # 2. HARDWARE CONCURRENCY LIMITS
