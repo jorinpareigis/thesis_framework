@@ -1,8 +1,10 @@
-import torch
+import logging
+from typing import Any
 import numpy as np
 import pandas as pd
-import logging
+import torch
 from chronos import ChronosPipeline
+
 from .base_model import BaseForecastingModel
 
 logger = logging.getLogger(__name__)
@@ -10,49 +12,67 @@ logger = logging.getLogger(__name__)
 class ChronosModel(BaseForecastingModel):
     """
     Implements Amazon's Chronos foundation model for zero-shot time-series forecasting.
-    Uses a transformer-based language model architecture.
+    
+    Utilizes a transformer-based language model architecture to generate 
+    probabilistic forecasting trajectories.
     """
-    def __init__(self, cfg):
+
+    def __init__(self, cfg: Any) -> None:
+        """
+        Initializes the Chronos pipeline and allocates it to the optimal hardware accelerator.
+
+        Args:
+            cfg (Any): The configuration object containing model hyperparameters and random seeds.
+        """
         model_cfg = cfg.model
         self.repo_id = model_cfg.repo_id
         self.num_samples = model_cfg.num_samples
         self.temperature = model_cfg.temperature
         self.top_p = model_cfg.top_p
         
-        # Capture the seed from Hydra for deterministic inference
         self.seed = cfg.seed 
         
-        # Explicitly assign to GPU to ensure acceptable iteration speed
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if self.device == "cpu":
             logger.warning("CUDA not detected. Chronos will run on CPU and be severely bottlenecked.")
 
-        # Initialize the pipeline. This triggers a one-time download on the first execution.
-        # torch.bfloat16 optimizes VRAM usage for the RTX 3000 series without losing precision.
+        # torch.bfloat16 optimizes VRAM usage for modern NVIDIA architectures
+        # without suffering the precision degradation typical of standard float16.
         self.pipeline = ChronosPipeline.from_pretrained(
             self.repo_id,
             device_map=self.device,
             dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
         )
-        self.context_data = None
+        self.context_data: torch.Tensor | None = None
 
-    def train(self, train_data: pd.Series):
+    def train(self, train_data: pd.Series) -> None:
         """
-        Zero-shot models do not train on local data. 
-        This method converts the historical sequence into a PyTorch tensor to be used as context.
+        Processes historical data to act as the context sequence for zero-shot inference.
+        
+        Note: Foundation models do not update internal weights during this phase.
+
+        Args:
+            train_data (pd.Series): The historical time-series data.
         """
-        # Ensure data is float and convert directly to a PyTorch tensor
         self.context_data = torch.tensor(train_data.values, dtype=torch.float32)
 
-    def predict(self, steps: int) -> list:
+    def predict(self, steps: int) -> list[float]:
         """
-        Executes inference. Chronos returns multiple probabilistic trajectories.
-        We extract the median trajectory to serve as our definitive point forecast.
+        Executes stochastic inference and extracts the median trajectory as the point forecast.
+
+        Args:
+            steps (int): The number of future time steps to predict.
+
+        Returns:
+            list[float]: The median point forecast.
+            
+        Raises:
+            RuntimeError: If context data is missing (train() was not executed).
         """
         if self.context_data is None:
             raise RuntimeError("Context data must be provided via train() before prediction.")
 
-        # CRITICAL FIX 6: Seed PyTorch RNG right before stochastic sampling
+        # Seed PyTorch RNG immediately prior to stochastic sampling to guarantee deterministic outputs
         torch.manual_seed(self.seed)
         if self.device == "cuda":
             torch.cuda.manual_seed_all(self.seed)
@@ -65,12 +85,7 @@ class ChronosModel(BaseForecastingModel):
             top_p=self.top_p,
         )
         
-        # 1. The tensor from Chronos is stripped of its batch dimension and converted to a NumPy array.
-        # This gives you an array with the shape: (20 samples, 24 future time steps)
         forecast_samples = forecast_tensor[0].cpu().numpy()
-        
-        # 2. THIS is the exact line where the median is calculated.
         point_forecast = np.median(forecast_samples, axis=0)
         
-        # 3. The resulting NumPy array is converted back into a standard Python list to match the framework.
         return point_forecast.tolist()

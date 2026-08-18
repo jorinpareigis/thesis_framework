@@ -1,84 +1,105 @@
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+from typing import Any
+
 from .base_model import BaseForecastingModel
 
 class XGBoostModel(BaseForecastingModel):
     """
-    Implements XGBoost for time-series forecasting.
-    Unlike SARIMAX, XGBoost does not natively process sequential time-series data.
-    This class transforms the 1D time-series into a 2D supervised machine learning 
-    format using a sliding window of lag features.
+    Implements an XGBoost regressor for time-series forecasting.
+    
+    Transforms 1D sequential time-series data into a 2D supervised machine learning 
+    feature matrix using a sliding window approach (autoregressive lags).
     """
-    def __init__(self, cfg):
+    def __init__(self, cfg: Any) -> None:
+        """
+        Initializes the XGBoost model and configures hyperparameters.
+
+        Args:
+            cfg (Any): The Hydra configuration object containing model parameters.
+        """
         model_cfg = cfg.model
-        # n_lags defines the size of the sliding window (how many past steps are used to predict the next step).
         self.n_lags = model_cfg.n_lags
         
-        # Initialize the underlying XGBoost regressor with YAML parameters.
         self.model = xgb.XGBRegressor(
             n_estimators=model_cfg.n_estimators,
             learning_rate=model_cfg.learning_rate,
             max_depth=model_cfg.max_depth,
             subsample=model_cfg.get("subsample", 1.0),
             colsample_bytree=model_cfg.get("colsample_bytree", 1.0),
-            # Set to standard regression loss.
             objective='reg:squarederror',
-            # Seed propagation ensures tree building is deterministic across Monte Carlo runs.
             random_state=cfg.current_model_seed
         )
-        # Stores the final data window from the training set to bootstrap the prediction phase.
-        self.last_known_data = None
+        self.last_known_data: list[float] | None = None
 
-    def _create_features(self, series: pd.Series):
+    def _create_features(self, time_series: pd.Series) -> tuple[np.ndarray, np.ndarray]:
         """
-        Converts a 1D time series into a 2D feature matrix (X) and target vector (y).
-        Iterates through the data, extracting chunks of length `n_lags` as features, 
-        and the immediately following single value as the target.
+        Converts a 1D time series into a 2D feature matrix (X) and target vector (y)
+        via a sliding window of size `n_lags`.
+
+        Args:
+            time_series (pd.Series): The historical time-series data.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: A tuple containing the feature matrix (X) 
+                                           and the target vector (y).
         """
         X, y = [], []
-        values = series.values
+        values = time_series.values
         for i in range(len(values) - self.n_lags):
             X.append(values[i : i + self.n_lags])
             y.append(values[i + self.n_lags])
         return np.array(X), np.array(y)
 
-    def train(self, train_data: pd.Series):
-        # CRITICAL FIX 4: Guard against un-imputed NaNs crashing the C++ backend
+    def train(self, train_data: pd.Series) -> None:
+        """
+        Transforms the sequence into tabular features and trains the tree ensemble.
+
+        Args:
+            train_data (pd.Series): The historical training dataset.
+
+        Raises:
+            ValueError: If the training data contains un-imputed NaN values.
+        """
         if train_data.isna().any():
             raise ValueError("Training data contains NaNs. Use an imputation method in your corruption config.")
             
-        # Enforce float type to avoid data type conflicts within the XGBoost C++ backend.
+        # Enforce float type to prevent data type conflicts within the XGBoost C++ backend
         train_data = train_data.astype(float)
         
-        # Save the very last window of data. We need this to initiate the first prediction 
-        # because the model requires exactly `n_lags` features to execute an inference step.
         self.last_known_data = train_data.iloc[-self.n_lags:].values.tolist()
         
-        # Transform the sequential data and train the tree ensemble.
         X_train, y_train = self._create_features(train_data)
         self.model.fit(X_train, y_train)
 
-    def predict(self, steps: int) -> list:
+    def predict(self, steps: int) -> list[float]:
+        """
+        Executes recursive multi-step forecasting by iteratively predicting one step 
+        ahead and appending the output to the rolling window context.
+
+        Args:
+            steps (int): The number of future time steps to predict.
+
+        Returns:
+            list[float]: The generated point forecasts.
+
+        Raises:
+            RuntimeError: If the model has not been trained prior to prediction.
+        """
         if self.last_known_data is None:
             raise RuntimeError("The model must be trained before prediction.")
             
         predictions = []
-        # Create a working copy of the most recent data to avoid modifying the trained state.
-        current_window = self.last_known_data.copy()
+        rolling_context = self.last_known_data.copy()
         
-        # Recursive forecasting: predict 1 step, append it, slide the window, repeat.
-        # This allows multi-step forecasting from a model inherently designed for single-step regression.
         for _ in range(steps):
-            # Extract the most recent `n_lags` values and reshape to a 2D matrix (1 row, n_lags columns) 
-            # as required by the XGBoost predict API.
-            X_pred = np.array(current_window[-self.n_lags:]).reshape(1, -self.n_lags)
+            X_pred = np.array(rolling_context[-self.n_lags:]).reshape(1, -self.n_lags)
             
-            y_hat = self.model.predict(X_pred)[0]
-            predictions.append(y_hat)
+            predicted_value = float(self.model.predict(X_pred)[0])
+            predictions.append(predicted_value)
             
-            # Append prediction to the window to act as a feature for the next iteration step.
-            # This causes errors to compound over long prediction horizons.
-            current_window.append(y_hat)
+            # Compounding error vulnerability: Using own predictions as features for future steps
+            rolling_context.append(predicted_value)
             
         return predictions

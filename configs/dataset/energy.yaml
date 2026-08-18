@@ -2,12 +2,12 @@ name: "energy"
 file_path: "data/PJME_hourly.csv"
 target_column: "PJME_MW"
 frequency: "h"
-subset_size: 1680    # Exactly 10 weeks
-test_size: 48        # Predict exactly 2 days
-seasonality: 24      # Daily human wake/sleep cycles
+subset_size: 1680    # 10 weeks
+test_size: 48        # 2 days
+seasonality: 24
 context_window: 48   # used for LSTM and XGBoost
 
 prophet_seasonality_mode: "additive"
 
-sarimax_order: [1, 0, 0] # changed from [2, 1, 2] to [1, 0, 0] the later is better
-sarimax_seasonal_order: [0, 1, 0, 24] # changed from [2, 0, 1, 24] to [0, 0, 0, 24] then to [0, 1, 0, 24] the last is better
+sarima_order: [1, 0, 0]
+sarima_seasonal_order: [0, 1, 0, 24]

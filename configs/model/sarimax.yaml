@@ -1,3 +1,0 @@
-name: "sarimax"
-order: ${dataset.sarimax_order}
-seasonal_order: ${dataset.sarimax_seasonal_order}

@@ -1,0 +1,3 @@
+name: "sarima"
+order: ${dataset.sarima_order}
+seasonal_order: ${dataset.sarima_seasonal_order}

@@ -7,22 +7,19 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-# Fixed allocation for colors and line styles (Symbols removed, forced to circle below)
 MODEL_STYLES = {
     "naive":   {"name": "Naive Baseline", "color": "#7F7F7F", "dash": "dash"},
-    "sarimax": {"name": "SARIMAX",        "color": "#1F77B4", "dash": "solid"},
-    "prophet": {"name": "PROPHET",        "color": "#2CA02C", "dash": "solid"},
-    "xgboost": {"name": "XGBOOST",        "color": "#D62728", "dash": "solid"},
+    "sarima": {"name": "SARIMA",        "color": "#1F77B4", "dash": "solid"},
+    "prophet": {"name": "Prophet",        "color": "#2CA02C", "dash": "solid"},
+    "xgboost": {"name": "XGBoost",        "color": "#D62728", "dash": "solid"},
     "lstm":    {"name": "LSTM",           "color": "#9467BD", "dash": "solid"},
-    "chronos": {"name": "CHRONOS",        "color": "#FF7F0E", "dash": "solid"}
+    "chronos": {"name": "Chronos",        "color": "#FF7F0E", "dash": "solid"}
 }
 
 def main():
-    # --- EDIT TITLES HERE ---
-    PLOT_TITLE = "Energy with Outliers: RMSE Median Curve"
+    PLOT_TITLE = "Air Quality with Sensor Drift: RMSE Median"
     X_AXIS_TITLE = "Corruption Level (%)"
     Y_AXIS_TITLE = "RMSE"
-    # ------------------------
 
     input_dir = os.path.join("images", "CSV")
     output_dir = os.path.join("images", "CSV", "converted")
@@ -88,12 +85,32 @@ def main():
             ))
             
         fig.update_layout(
-            title=PLOT_TITLE, 
-            xaxis_title=X_AXIS_TITLE, 
-            yaxis_title=Y_AXIS_TITLE,
-            yaxis=dict(rangemode="nonnegative"), 
+            title=dict(
+                text=PLOT_TITLE,
+                font=dict(size=25)
+            ),
+            xaxis=dict(
+                title=X_AXIS_TITLE,
+                title_font=dict(size=23),
+                tickfont=dict(size=19)
+            ),
+            yaxis=dict(
+                title=Y_AXIS_TITLE,
+                title_font=dict(size=23),
+                tickfont=dict(size=19),
+                rangemode="nonnegative"
+            ),
             template="plotly_white",
-            hovermode="x unified"
+            hovermode="x unified",
+            margin=dict(t=80, b=120),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=20)
+            )
         )
         
         save_path = os.path.join(output_dir, f"{base_name}.pdf")

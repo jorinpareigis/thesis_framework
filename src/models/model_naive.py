@@ -1,64 +1,88 @@
 import numpy as np
 import pandas as pd
+from typing import Any
+
 from .base_model import BaseForecastingModel
 
 class NaiveModel(BaseForecastingModel):
     """
-    Implements basic baseline forecasting methods. 
-    Used to establish a minimum performance threshold for complex models.
+    Implements baseline statistical forecasting methods.
+    
+    Acts as a minimum performance threshold to evaluate whether complex 
+    machine learning models add tangible predictive value.
     """
-    def __init__(self, cfg):
+    def __init__(self, cfg: Any) -> None:
+        """
+        Initializes the naive forecasting strategy and seasonal parameters.
+
+        Args:
+            cfg (Any): The configuration object containing the chosen strategy 
+                       and dataset seasonality parameters.
+
+        Raises:
+            ValueError: If the requested strategy is not implemented.
+        """
         model_cfg = cfg.model
         self.strategy = model_cfg.strategy
-        # Defaults to 1 to prevent division by zero or indexing errors if omitted in YAML
         self.season_length = model_cfg.get("season_length", 1)
-        self.history = None
+        self.history: np.ndarray | None = None
 
-        # Fail-fast validation: catch configuration errors before initiating the data pipeline
         valid_strategies = ["forward_fill", "mean", "seasonal_average", "seasonal_naive"]
         if self.strategy not in valid_strategies:
             raise ValueError(f"Strategy '{self.strategy}' is not recognized.")
 
-    def train(self, train_data: pd.Series):
-        """Stores historical data and verifies structural requirements."""
-        # Convert to standard float array for faster vectorized numpy operations later
+    def train(self, train_data: pd.Series) -> None:
+        """
+        Stores the historical time-series data required for naive extrapolation.
+
+        Args:
+            train_data (pd.Series): The historical training dataset.
+
+        Raises:
+            ValueError: If the provided data length is shorter than the configured seasonal cycle.
+        """
         self.history = train_data.astype(float).values
         
-        # Ensure enough historical data exists to calculate a full seasonal cycle
         if self.strategy in ["seasonal_naive", "seasonal_average"]:
             if len(self.history) < self.season_length:
                 raise ValueError(
                     f"Data length ({len(self.history)}) must be >= season_length ({self.season_length})."
                 )
 
-    def predict(self, steps: int) -> list:
-        """Executes the chosen naive forecasting strategy."""
+    def predict(self, steps: int) -> list[float]:
+        """
+        Generates predictions based on the configured baseline strategy.
+
+        Args:
+            steps (int): The number of future time steps to predict.
+
+        Returns:
+            list[float]: The generated point forecasts.
+
+        Raises:
+            RuntimeError: If the model has not been trained prior to prediction.
+        """
         if self.history is None:
             raise RuntimeError("The model must be trained before prediction.")
             
         predictions = []
         
         if self.strategy == "forward_fill":
-            # Propagates the most recent single observation forward
-            val = self.history[-1]
+            val = float(self.history[-1])
             predictions = [val] * steps
             
         elif self.strategy == "mean":
-            # Calculates the global mean of all available historical data
-            val = np.mean(self.history)
+            val = float(np.mean(self.history))
             predictions = [val] * steps
             
         elif self.strategy == "seasonal_average":
-            # Averages only the final complete seasonal cycle (e.g., the last 24 hours)
-            val = np.mean(self.history[-self.season_length:])
+            val = float(np.mean(self.history[-self.season_length:]))
             predictions = [val] * steps
             
         elif self.strategy == "seasonal_naive":
-            # Repeats the exact pattern of the last known season
+            # Modulo arithmetic cycles backwards through the final known season
             for i in range(steps):
-                # Modulo operator loops the index backward over the season_length boundary.
-                # Example for season_length=24: idx cycles from -24 up to -1 repeatedly.
                 idx = -(self.season_length) + (i % self.season_length)
-                predictions.append(self.history[idx])
+                predictions.append(float(self.history[idx]))
             
         return predictions

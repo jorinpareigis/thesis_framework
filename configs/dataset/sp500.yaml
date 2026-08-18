@@ -1,13 +1,13 @@
 name: "sp500"
 file_path: "data/SP500_daily.csv"
 target_column: "Close"
-frequency: "B"        # CRITICAL: Pandas 'Business Day' frequency (Mon-Fri only)
-subset_size: 1008     # Exactly 4 trading years (252 trading days per year * 4)
-test_size: 5          # Predict 1 full trading week
-seasonality: 5        # 5 active days in a trading week
+frequency: "B"
+subset_size: 1008     # 4 trading years
+test_size: 5          # 1 full trading week
+seasonality: 5
 context_window: 10    # used for LSTM and XGBoost
 
 prophet_seasonality_mode: "multiplicative"
 
-sarimax_order: [0, 1, 0]
-sarimax_seasonal_order: [0, 0, 0, 5]
+sarima_order: [0, 1, 0]
+sarima_seasonal_order: [0, 0, 0, 5]

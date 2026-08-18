@@ -12,10 +12,10 @@ A modular machine learning framework designed to evaluate the degradation curves
   * **IoT:** Machine Temperature 5-min (`iot_temp`)
   * **Environment:** Beijing PM2.5 Hourly Air Quality (`air_quality`)
 * **Implemented Models:**
-  * **Statistical:** SARIMAX, Prophet
+  * **Statistical:** SARIMA, Prophet
   * **Machine Learning:** XGBoost
   * **Deep Learning/Foundation:** LSTM (PyTorch), Chronos (Amazon)
-  * **Naive Baselines:** Forward Fill, Global Mean, Seasonal Last, Seasonal Average
+  * **Naive Baselines:** Forward Fill, Global Mean, Seasonal Naive, Seasonal Average
 * **Implemented Corruptions:**
   * MCAR (Missing Completely At Random)
   * Outliers
@@ -33,7 +33,9 @@ thesis_framework/
 │   ├── model/               # Model-specific hyperparameters
 │   └── config.yaml          # Global orchestrator parameters
 ├── data/                    # Local CSV datasets (git-ignored)
-├── scripts/                 # Data fetching, baseline calculation, and visualization scripts
+├── scripts/                 # Execution and utility scripts
+│   ├── download_*.py        # Data fetching scripts
+│   ├── calculate_sarima_baselines.py
 ├── src/
 │   ├── models/              # Model wrappers (XGBoost, LSTM, Chronos, etc.)
 │   ├── utils/               # Validators and helpers
@@ -48,7 +50,7 @@ thesis_framework/
 
 ## Installation (Windows Setup)
 
-This project uses `uv`, an extremely fast Python package and project manager.
+This project uses `uv`, a Python package and project manager.
 
 **1. Clone the repository**
 
@@ -101,7 +103,7 @@ python scripts/download_iot_temp.py
 python scripts/download_sp500.py
 ```
 
-*Note: Download the `PJME_hourly.csv` dataset manually and place it in the `data/` folder.*
+*Note: Download the `PJME_hourly.csv` dataset manually (e.g., from Kaggle) and place it in the `data/` folder.*
 
 ## Running a Single Experiment (`main.py`)
 
@@ -119,8 +121,8 @@ Specify target parameters using the `key=value` syntax.
 
 **Model Selection (`model=`)**
 
-* `xgboost`, `sarimax`, `prophet`, `lstm`, `chronos`
-* `naive model.strategy=forward_fill` (Options: `forward_fill`, `mean`, `seasonal_naive`, `seasonal_average`)
+* `xgboost`, `sarima`, `prophet`, `lstm`, `chronos`
+* `model=naive model.strategy=forward_fill` (Options: `forward_fill`, `mean`, `seasonal_naive`, `seasonal_average`)
 
 **Dataset Selection (`dataset=`)**
 
@@ -159,8 +161,6 @@ To execute multiple configurations sequentially or concurrently without re-enter
 ```bash
 python run_experiments.py
 ```
-
-
 
 The script automatically routes CPU-bound models to a concurrent pool and GPU-bound models to a sequential queue, monitoring progress without cluttering the terminal.
 

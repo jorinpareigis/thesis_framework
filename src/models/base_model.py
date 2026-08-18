@@ -1,39 +1,44 @@
 from abc import ABC, abstractmethod
+from typing import Any
 import pandas as pd
 
 class BaseForecastingModel(ABC):
     """
-    This is the Abstract Base Class (Template) for all forecasting models in the framework.
-    Any new model added to the framework MUST implement these three methods.
+    Abstract Base Class defining the uniform interface for all forecasting models within the framework.
+    
+    Enforces a strict contract for initialization, training, and inference to guarantee 
+    interoperability with the automated Monte Carlo evaluation pipeline.
     """
 
     @abstractmethod
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """
-        Initialize the model and its specific parameters.
-        (e.g., 'order' for SARIMAX, or 'max_depth' for XGBoost).
+        Initializes the forecasting model and parses its specific hyperparameters.
+
+        Args:
+            **kwargs (Any): Model-specific configuration parameters.
         """
         pass
 
     @abstractmethod
-    def train(self, train_data: pd.Series):
+    def train(self, train_data: pd.Series) -> None:
         """
-        Trains the model on the provided historical data.
-        
+        Fits the model to the provided historical time-series data.
+
         Args:
-            train_data (pd.Series): A pandas Series containing the time-series data.
+            train_data (pd.Series): The historical training dataset.
         """
         pass
 
     @abstractmethod
-    def predict(self, steps: int) -> list:
+    def predict(self, steps: int) -> list[float]:
         """
-        Generates a forecast for the specified number of future steps.
-        
+        Generates a sequential point forecast for future time steps.
+
         Args:
-            steps (int): The number of timestamps to predict into the future.
-            
+            steps (int): The number of future time intervals to predict.
+
         Returns:
-            list: A list or array of the predicted numerical values.
+            list[float]: The forecasted numerical values.
         """
         pass

@@ -1,32 +1,34 @@
-import pandas as pd
 import logging
-# Suppress Prophet's heavy debug logging to keep the terminal clean
-import logging as py_logging
-py_logging.getLogger('cmdstanpy').setLevel(py_logging.ERROR)
-py_logging.getLogger('prophet').setLevel(py_logging.ERROR)
-
+from typing import Any
+import pandas as pd
 from prophet import Prophet
+
 from .base_model import BaseForecastingModel
 
-# Suppress Prophet's chatty INFO logs to keep the terminal clean
-logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
-logging.getLogger('prophet').setLevel(logging.WARNING)
+# Suppress heavy internal logging from Prophet and its C++ backend (cmdstanpy)
+logging.getLogger('cmdstanpy').setLevel(logging.ERROR)
+logging.getLogger('prophet').setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
 class ProphetModel(BaseForecastingModel):
     """
     Implements Facebook's Prophet model for time-series forecasting.
-    Prophet treats forecasting as a curve-fitting task rather than a strict 
-    autoregressive task, making it highly robust to missing data (MCAR).
+    
+    Treats forecasting as a curve-fitting task rather than an autoregressive task, 
+    enhancing robustness against Missing Completely At Random (MCAR) data.
     """
-    def __init__(self, cfg):
+    def __init__(self, cfg: Any) -> None:
+        """
+        Initializes the Prophet model and configures its hyperparameters.
+
+        Args:
+            cfg (Any): The Hydra configuration object.
+        """
         model_cfg = cfg.model
         
-        # CRITICAL FIX 5: Capture the true dataset frequency from Hydra
         self.config_freq = cfg.dataset.get("frequency", "h")
         
-        # Initialize Prophet explicitly using the parameters defined in prophet.yaml
         self.model = Prophet(
             growth=model_cfg.growth,
             seasonality_mode=model_cfg.seasonality_mode,
@@ -36,41 +38,47 @@ class ProphetModel(BaseForecastingModel):
             weekly_seasonality=model_cfg.weekly_seasonality,
             yearly_seasonality=model_cfg.yearly_seasonality
         )
-        # Placeholder to store the dataset's temporal frequency
-        self.freq = None
+        self.freq: str | None = None
 
-    def train(self, train_data: pd.Series):
+    def train(self, train_data: pd.Series) -> None:
         """
-        Transforms the standard Series into Prophet's required DataFrame structure 
-        and fits the curve.
+        Transforms the time-series data to meet Prophet's strict schema and fits the curve.
+
+        Args:
+            train_data (pd.Series): The historical training dataset.
         """
-        # 1. Structural Conversion
-        # Prophet strictly requires a DataFrame with 'ds' (datestamp) and 'y' (value) columns.
         df = train_data.reset_index()
         df.columns = ['ds', 'y']
         df['y'] = df['y'].astype(float)
         
-        # 2. Frequency Inference
-        # Prophet needs to know the time delta between steps to generate future dates.
         self.freq = train_data.index.inferred_freq
         if self.freq is None:
-            # Fallback mechanism: If data corruption is so severe that pandas cannot 
-            # mathematically infer the step frequency, we default to the YAML config.
-            logger.warning(f"Could not infer datetime frequency from index. Defaulting to config frequency: '{self.config_freq}'.")
+            # Fallback mechanism: Severe missing data can break pandas ability to infer the step frequency mathematically.
+            logger.warning(
+                f"Could not infer datetime frequency from index. "
+                f"Defaulting to config frequency: '{self.config_freq}'."
+            )
             self.freq = self.config_freq
             
         self.model.fit(df)
 
-    def predict(self, steps: int) -> list:
+    def predict(self, steps: int) -> list[float]:
         """
-        Generates future datestamps and returns the predicted curve values.
+        Generates future datestamps and extrapolates the fitted curve.
+
+        Args:
+            steps (int): The number of future time steps to predict.
+
+        Returns:
+            list[float]: The generated point forecasts.
+            
+        Raises:
+            RuntimeError: If the model has not been trained prior to prediction.
         """
-        # make_future_dataframe builds an empty DataFrame with the correct future timestamps.
-        # include_history=False prevents Prophet from re-predicting the entire training set.
+        if self.freq is None:
+            raise RuntimeError("Model must be trained before generating predictions.")
+
         future = self.model.make_future_dataframe(periods=steps, freq=self.freq, include_history=False)
-        
-        # Predict generates a massive DataFrame with confidence intervals (yhat_lower, yhat_upper).
         forecast = self.model.predict(future)
         
-        # We only extract the point forecast ('yhat') to match the framework's evaluation logic.
         return forecast['yhat'].tolist()

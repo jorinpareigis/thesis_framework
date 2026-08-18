@@ -14,7 +14,6 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 def main():
-    # Define our 5 specific target experiments
     targets = [
         ("energy", "gaussian_noise", "Gaussian Noise"),
         ("energy", "outliers", "Outliers"),
@@ -25,7 +24,6 @@ def main():
     
     intensity = 50.0
     
-    # Create a 3x2 grid. The bottom right (row 3, col 2) will be left empty for the legend.
     fig = make_subplots(
         rows=3, cols=2,
         subplot_titles=[f"{ds.upper()} | {name} (50%)" for ds, _, name in targets] + [""],
@@ -33,14 +31,12 @@ def main():
         horizontal_spacing=0.05
     )
 
-    # Keep track of which legend items we've already added so we don't get duplicates
     added_legends = set()
 
     with initialize(version_base=None, config_path="../configs"):
         for idx, (dataset, corruption, title_name) in enumerate(targets):
             logger.info(f"Processing: {dataset.upper()} + {corruption.upper()}")
             
-            # Calculate grid position (1-indexed for Plotly)
             row = (idx // 2) + 1
             col = (idx % 2) + 1
             
@@ -52,7 +48,6 @@ def main():
             
             train_clean, _ = load_data(cfg)
             
-            # --- 1. Plot Clean Data ---
             show_clean_legend = "Clean Data" not in added_legends
             fig.add_trace(go.Scatter(
                 x=train_clean.index, 
@@ -63,12 +58,9 @@ def main():
                 showlegend=show_clean_legend
             ), row=row, col=col)
             if show_clean_legend: added_legends.add("Clean Data")
-
-            # --- 2. Generate and Plot Corrupted Data ---
             original_method = cfg.corruption.method
             
             if corruption in ["mcar", "sensor_outage"]:
-                # Force 'none' to get the raw NaNs for visualization
                 cfg.corruption.method = "none"
                 corrupted = apply_corruption(train_clean, cfg, intensity)
                 cfg.corruption.method = original_method 
@@ -82,13 +74,11 @@ def main():
                         y=affected_points.values, 
                         mode='markers', 
                         name=title_name,
-                        marker=dict(color='red', size=3, symbol='x'),
+                        marker=dict(color='red', size=3, symbol='circle'),
                         showlegend=True
                     ), row=row, col=col)
                     
                 elif corruption == "sensor_outage":
-                    # To draw solid lines ONLY where data dropped, we replace non-missing data with NaNs.
-                    # Plotly naturally breaks lines at NaNs, creating distinct red blocks.
                     outage_lines = train_clean.copy()
                     outage_lines[~missing_mask] = np.nan
                     fig.add_trace(go.Scatter(
@@ -110,7 +100,7 @@ def main():
                     y=affected_points.values, 
                     mode='markers', 
                     name=title_name,
-                    marker=dict(color='red', size=4),
+                    marker=dict(color='red', size=3, symbol='circle'),
                     showlegend=True
                 ), row=row, col=col)
                 
@@ -121,7 +111,6 @@ def main():
                     y=corrupted.values, 
                     mode='lines', 
                     name=title_name,
-                    # Dotted line to clearly show the noise overlaying the clean baseline
                     line=dict(color='rgba(255, 0, 0, 0.7)', width=0.75, dash='dot'),
                     showlegend=True
                 ), row=row, col=col)
@@ -130,7 +119,6 @@ def main():
                 corrupted = apply_corruption(train_clean, cfg, intensity)
                 affected_mask = (corrupted - train_clean).abs() > 1e-6
                 
-                # Find the exact timestamp where the drift begins
                 if affected_mask.any():
                     first_idx = affected_mask.idxmax()
                     drift_data = corrupted.loc[first_idx:]
@@ -140,33 +128,37 @@ def main():
                         y=drift_data.values, 
                         mode='lines', 
                         name=title_name,
-                        # Plot only from the onset index forward
-                        line=dict(color='rgba(255, 0, 0, 0.8)', width=2),
+                        line=dict(color='rgba(255, 0, 0, 0.8)', width=1),
                         showlegend=True
                     ), row=row, col=col)
 
-    # Apply global layout constraints
+    for annotation in fig['layout']['annotations']:
+        annotation['font'] = dict(size=22)
+
     fig.update_layout(
-        title="Visual Representation of Framework Corruptions at 50% Intensity",
+        title=dict(
+            text="Corruptions at 50% Intensity compared to clean Data",
+            font=dict(size=26)
+        ),
         template="plotly_white",
-        height=900,  # Taller aspect ratio to fit the 3x2 grid comfortably
+        height=900,
         width=1400,
-        # Force the legend into the empty bottom-right slot
+        margin=dict(t=80, b=120),
         legend=dict(
             x=0.75, 
             y=0.15, 
             xanchor="center", 
             yanchor="middle",
             bordercolor="Black",
-            borderwidth=1
+            borderwidth=1,
+            font=dict(size=20),
+            itemsizing="constant"
         )
     )
     
-    # Hide axis titles for interior plots to keep it clean, but keep ticks
-    fig.update_xaxes(showline=True, linewidth=1, linecolor='lightgray')
-    fig.update_yaxes(showline=True, linewidth=1, linecolor='lightgray')
+    fig.update_xaxes(showline=True, linewidth=1, linecolor='lightgray', tickfont=dict(size=16))
+    fig.update_yaxes(showline=True, linewidth=1, linecolor='lightgray', tickfont=dict(size=16))
 
-    # Export High-Resolution PDF
     save_dir = os.path.join("images", "final_corr_viz")
     os.makedirs(save_dir, exist_ok=True) 
     

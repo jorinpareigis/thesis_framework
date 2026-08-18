@@ -1,13 +1,13 @@
 name: "iot_temp"
 file_path: "data/iot_temp.csv"
 target_column: "temperature"
-frequency: "5min"    # Required for pandas frequency parsing
-subset_size: 2016    # Loads exactly 7 days of 5-minute data
+frequency: "5min"
+subset_size: 2016    # 7 days
 test_size: 60        # 5 hours
-seasonality: 288     # Daily thermal cycle for the machine
+seasonality: 288
 context_window: 48   # used for LSTM and XGBoost
 
 prophet_seasonality_mode: "additive"
 
-sarimax_order: [1, 1, 2]
-sarimax_seasonal_order: [0, 0, 0, 0]
+sarima_order: [1, 1, 2]
+sarima_seasonal_order: [0, 0, 0, 0]

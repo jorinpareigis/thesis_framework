@@ -10,7 +10,7 @@ src/models/model_chronos.py
 src/models/model_lstm.py
 src/models/model_naive.py
 src/models/model_prophet.py
-src/models/model_sarimax.py
+src/models/model_sarima.py
 src/models/model_xgboost.py
 src/thesis_framework.egg-info/PKG-INFO
 src/thesis_framework.egg-info/SOURCES.txt

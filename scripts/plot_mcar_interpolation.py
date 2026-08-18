@@ -11,7 +11,7 @@ def generate_mcar_smoothing_plot():
     Generates visualizations demonstrating the artificial smoothing effect 
     of linear interpolation under different MCAR corruption intensities.
     """
-    ZOOM_STEPS = 100 
+    ZOOM_STEPS = 150
     
     with initialize(version_base=None, config_path="../configs"):
         for intensity in [50.0, 100.0]:
@@ -55,17 +55,17 @@ def generate_mcar_smoothing_plot():
             fig.update_layout(
                 title=dict(
                     text=f"Artificial Smoothing on S&P 500 (MCAR {int(intensity)}%)",
-                    font=dict(size=24)
+                    font=dict(size=25)
                 ),
                 xaxis=dict(
                     title="Time",
-                    title_font=dict(size=22),
-                    tickfont=dict(size=18)
+                    title_font=dict(size=23),
+                    tickfont=dict(size=19)
                 ),
                 yaxis=dict(
                     title="S&P 500 Value",
-                    title_font=dict(size=22),
-                    tickfont=dict(size=18)
+                    title_font=dict(size=23),
+                    tickfont=dict(size=19)
                 ),
                 template="plotly_white",
                 hovermode="x unified",
@@ -76,7 +76,7 @@ def generate_mcar_smoothing_plot():
                     y=-0.2, 
                     xanchor="center",
                     x=0.5,
-                    font=dict(size=18)
+                    font=dict(size=20)
                 )
             )
             

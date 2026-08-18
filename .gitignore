@@ -6,7 +6,13 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 thesis_env/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
 
 # Data
 data/

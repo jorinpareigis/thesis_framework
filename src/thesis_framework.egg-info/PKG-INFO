@@ -4,20 +4,21 @@ Version: 0.1.0
 Summary: Time-Series Forecasting Robustness Framework
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
+Requires-Dist: chronos-forecasting>=2.2.0
 Requires-Dist: hydra-core>=1.3.2
-Requires-Dist: omegaconf>=2.3.0
-Requires-Dist: wandb>=0.16.0
-Requires-Dist: pandas>=2.0.0
+Requires-Dist: kaleido>=1.3.0
 Requires-Dist: numpy>=1.24.0
+Requires-Dist: omegaconf>=2.3.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: plotly>=6.7.0
+Requires-Dist: pmdarima>=2.1.0
+Requires-Dist: prophet>=1.3.0
 Requires-Dist: scikit-learn>=1.3.0
 Requires-Dist: statsmodels>=0.14.0
-Requires-Dist: xgboost>=2.0.0
-Requires-Dist: yfinance>=0.2.0
-Requires-Dist: prophet>=1.1.5
-Requires-Dist: plotly>=5.18.0
-Requires-Dist: chronos-forecasting>=1.0.0
 Requires-Dist: tqdm>=4.66.0
-Requires-Dist: kaleido
+Requires-Dist: wandb>=0.26.0
+Requires-Dist: xgboost>=2.0.0
+Requires-Dist: yfinance>=1.3.0
 
 # Thesis Framework: Time-Series Forecasting Robustness
 
@@ -33,7 +34,7 @@ A modular machine learning framework designed to evaluate the degradation curves
   * **IoT:** Machine Temperature 5-min (`iot_temp`)
   * **Environment:** Beijing PM2.5 Hourly Air Quality (`air_quality`)
 * **Implemented Models:**
-  * **Statistical:** SARIMAX, Prophet
+  * **Statistical:** SARIMA, Prophet
   * **Machine Learning:** XGBoost
   * **Deep Learning/Foundation:** LSTM (PyTorch), Chronos (Amazon)
   * **Naive Baselines:** Forward Fill, Global Mean, Seasonal Last, Seasonal Average
@@ -140,7 +141,7 @@ Specify target parameters using the `key=value` syntax.
 
 **Model Selection (`model=`)**
 
-* `xgboost`, `sarimax`, `prophet`, `lstm`, `chronos`
+* `xgboost`, `sarima`, `prophet`, `lstm`, `chronos`
 * `naive model.strategy=forward_fill` (Options: `forward_fill`, `mean`, `seasonal_naive`, `seasonal_average`)
 
 **Dataset Selection (`dataset=`)**

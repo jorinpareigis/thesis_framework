@@ -2,12 +2,12 @@ name: "air_quality"
 file_path: "data/air_quality.csv"
 target_column: "pm2.5"
 frequency: "h"
-subset_size: 1680    # Exactly 10 weeks
-test_size: 48        # Predict exactly 2 days
-seasonality: 24      # Daily cycles (smog clearing at night)
+subset_size: 1680    # 10 weeks
+test_size: 48        # 2 days
+seasonality: 24
 context_window: 48   # used for LSTM and XGBoost
 
 prophet_seasonality_mode: "multiplicative"
 
-sarimax_order: [1, 0, 3]
-sarimax_seasonal_order: [0, 0, 0, 24]
+sarima_order: [1, 0, 3]
+sarima_seasonal_order: [0, 0, 0, 24]

@@ -1,52 +1,52 @@
 import os
+import sys
 import subprocess
 import itertools
 import logging
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# ==========================================
-# 1. DEFINE YOUR EXPERIMENT GRID
-# ==========================================
-DATASETS = ["energy", "iot_temp"]
-CORRUPTIONS = ["sensor_drift"]
-MODELS = ["chronos", "lstm", "naive", "prophet", "sarimax", "xgboost"]
+DATASETS: list[str] = ["energy"]
+CORRUPTIONS: list[str] = ["gaussian_noise"]
+MODELS: list[str] = ["xgboost"]
+RUN_SUFFIX: str = "_final_framework_test"
 
-RUN_SUFFIX = "_final_1.2"
+MAX_CPU_WORKERS: int = 4 
+MAX_GPU_WORKERS: int = 1 
+GPU_MODELS: set[str] = {"lstm", "chronos"}
 
-# ==========================================
-# 2. HARDWARE CONCURRENCY LIMITS
-# ==========================================
-MAX_CPU_WORKERS = 4 
-MAX_GPU_WORKERS = 1 
-
-GPU_MODELS = {"lstm", "chronos"}
-
-def run_single_experiment(dataset, corruption, model):
+def run_single_experiment(dataset: str, corruption: str, model: str) -> None:
+    """
+    Executes a single Hydra configuration run as a subprocess.
+    
+    Bypasses internal Python buffers to allow real-time stdout monitoring
+    for predefined milestone markers.
+    
+    Args:
+        dataset (str): The target dataset configuration key.
+        corruption (str): The target corruption configuration key.
+        model (str): The target model configuration key.
+    """
     target_group = f"{dataset}_{corruption}"
 
     cmd = [
-        "python", "main.py",
+        sys.executable, "main.py",
         f"dataset={dataset}",
         f"corruption={corruption}",
         f"model={model}",
         f"run_suffix={RUN_SUFFIX}",
-        f"+group_name={target_group}",  # Appends the dynamic group key into Hydra
+        f"+group_name={target_group}",
         "+batch_mode=True"
     ]
-    
-    #if model == "naive":
-    #    cmd.append("model.strategy=forward_fill")
         
     logger.info(f"STARTING: [{dataset} | {corruption} | {model}]")
     
-    # Force Python to bypass internal buffers for real-time logging
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
 
-    # Merge stderr into stdout (subprocess.STDOUT) to read everything linearly
     process = subprocess.Popen(
         cmd, 
         stdout=subprocess.PIPE, 
@@ -55,27 +55,33 @@ def run_single_experiment(dataset, corruption, model):
         env=env
     )
     
-    full_log = []
+    log_buffer = deque(maxlen=20)
     
-    # Read the clean, tqdm-free log stream
-    for line in process.stdout:
-        full_log.append(line)
-        if "BATCH_PROGRESS_25" in line:
-            logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 25% completed")
-        elif "BATCH_PROGRESS_50" in line:
-            logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 50% completed")
-        elif "BATCH_PROGRESS_75" in line:
-            logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 75% completed")
+    if process.stdout:
+        for line in process.stdout:
+            log_buffer.append(line)
+            if "BATCH_PROGRESS_25" in line:
+                logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 25% completed")
+            elif "BATCH_PROGRESS_50" in line:
+                logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 50% completed")
+            elif "BATCH_PROGRESS_75" in line:
+                logger.info(f"PROGRESS [{dataset} | {corruption} | {model}]: 75% completed")
 
     process.wait()
     
     if process.returncode != 0:
-        error_msg = "".join(full_log[-15:])
+        error_msg = "".join(log_buffer)
         logger.error(f"FAILED: [{dataset} | {corruption} | {model}]\nError Snippet:\n{error_msg}")
     else:
         logger.info(f"COMPLETED: [{dataset} | {corruption} | {model}]")
 
-def main():
+def main() -> None:
+    """
+    Orchestrates the batch execution of ML experiments.
+    
+    Splits tasks into CPU-bound and GPU-bound queues to prevent 
+    hardware oversubscription (e.g., CUDA Out-Of-Memory errors).
+    """
     experiments = list(itertools.product(DATASETS, CORRUPTIONS, MODELS))
     cpu_tasks = []
     gpu_tasks = []
