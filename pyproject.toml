@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "thesis_framework"
-version = "0.1.0"
+version = "1.0.0"
 description = "Time-Series Forecasting Robustness Framework"
 readme = "README.md"
 requires-python = ">=3.10"
